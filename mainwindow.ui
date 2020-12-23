@@ -6,9 +6,15 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1215</width>
-    <height>829</height>
+    <width>1484</width>
+    <height>781</height>
    </rect>
+  </property>
+  <property name="minimumSize">
+   <size>
+    <width>0</width>
+    <height>0</height>
+   </size>
   </property>
   <property name="windowTitle">
    <string>MainWindow</string>
@@ -16,77 +22,66 @@
   <widget class="QWidget" name="centralwidget">
    <layout class="QHBoxLayout" name="horizontalLayout_3">
     <item>
-     <layout class="QVBoxLayout" name="verticalLayout_2">
+     <layout class="QVBoxLayout" name="verticalLayout">
       <item>
-       <layout class="QVBoxLayout" name="verticalLayout">
+       <layout class="QHBoxLayout" name="horizontalLayout">
         <item>
-         <layout class="QHBoxLayout" name="horizontalLayout">
-          <item>
-           <widget class="QLabel" name="label">
-            <property name="minimumSize">
-             <size>
-              <width>100</width>
-              <height>0</height>
-             </size>
-            </property>
-            <property name="text">
-             <string>Number of threads</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QSpinBox" name="spinBox">
-            <property name="minimum">
-             <number>1</number>
-            </property>
-            <property name="maximum">
-             <number>20</number>
-            </property>
-           </widget>
-          </item>
-         </layout>
+         <widget class="QLineEdit" name="lineEdit">
+          <property name="minimumSize">
+           <size>
+            <width>100</width>
+            <height>20</height>
+           </size>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>100</width>
+            <height>20</height>
+           </size>
+          </property>
+         </widget>
         </item>
         <item>
-         <layout class="QHBoxLayout" name="horizontalLayout_2">
-          <item>
-           <widget class="QLabel" name="label_2">
-            <property name="minimumSize">
-             <size>
-              <width>100</width>
-              <height>0</height>
-             </size>
-            </property>
-            <property name="text">
-             <string>Number of iterations</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QSpinBox" name="spinBox_2">
-            <property name="maximum">
-             <number>15000</number>
-            </property>
-            <property name="value">
-             <number>500</number>
-            </property>
-           </widget>
-          </item>
-         </layout>
+         <widget class="QPushButton" name="pushButton">
+          <property name="minimumSize">
+           <size>
+            <width>70</width>
+            <height>22</height>
+           </size>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>70</width>
+            <height>22</height>
+           </size>
+          </property>
+          <property name="whatsThis">
+           <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Jumps to specified generation&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+          </property>
+          <property name="text">
+           <string>Jump</string>
+          </property>
+         </widget>
         </item>
        </layout>
       </item>
       <item>
-       <widget class="QPushButton" name="pushButton">
-        <property name="maximumSize">
-         <size>
-          <width>100</width>
-          <height>16777215</height>
-         </size>
-        </property>
-        <property name="text">
-         <string>Reset</string>
-        </property>
-       </widget>
+       <layout class="QHBoxLayout" name="horizontalLayout_4">
+        <item>
+         <widget class="QPushButton" name="pushButton_3">
+          <property name="text">
+           <string>Start</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="pushButton_4">
+          <property name="text">
+           <string>Stop</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
       </item>
       <item>
        <spacer name="verticalSpacer">
@@ -107,8 +102,14 @@
      <widget class="Canvas" name="widget" native="true">
       <property name="minimumSize">
        <size>
-        <width>1024</width>
-        <height>768</height>
+        <width>1280</width>
+        <height>720</height>
+       </size>
+      </property>
+      <property name="maximumSize">
+       <size>
+        <width>1280</width>
+        <height>720</height>
        </size>
       </property>
      </widget>
@@ -120,7 +121,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1215</width>
+     <width>1484</width>
      <height>21</height>
     </rect>
    </property>
@@ -143,89 +144,5 @@
   </customwidget>
  </customwidgets>
  <resources/>
- <connections>
-  <connection>
-   <sender>spinBox_2</sender>
-   <signal>valueChanged(int)</signal>
-   <receiver>widget</receiver>
-   <slot>changeNumOfIterations(int)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>130</x>
-     <y>83</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>193</x>
-     <y>147</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>spinBox</sender>
-   <signal>valueChanged(int)</signal>
-   <receiver>widget</receiver>
-   <slot>changeNumOfWorkers(int)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>150</x>
-     <y>46</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>195</x>
-     <y>70</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>pushButton</sender>
-   <signal>clicked()</signal>
-   <receiver>widget</receiver>
-   <slot>reset()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>69</x>
-     <y>104</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>231</x>
-     <y>228</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>widget</sender>
-   <signal>changeIterationSpinBox(int)</signal>
-   <receiver>spinBox_2</receiver>
-   <slot>setValue(int)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>270</x>
-     <y>121</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>168</x>
-     <y>84</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>widget</sender>
-   <signal>changeWorkersSpinbox(int)</signal>
-   <receiver>spinBox</receiver>
-   <slot>setValue(int)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>244</x>
-     <y>181</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>140</x>
-     <y>46</y>
-    </hint>
-   </hints>
-  </connection>
- </connections>
- <slots>
-  <slot>reset()</slot>
- </slots>
+ <connections/>
 </ui>

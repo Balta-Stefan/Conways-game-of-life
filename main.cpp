@@ -1,19 +1,15 @@
 #include "mainwindow.h"
-#include "canvas.h"
+#include "LifeCalculator.h"
 
 #include <QApplication>
-
-
-/*
-klasa canvas sadrzi sve metode potrebne za kalkulisanje boje piksela
-
-*/
-
 
 int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
     MainWindow w;
     w.show();
+    LifeCalculator obj1;
+    //obj1.funkcija();
+
     return a.exec();
 }
