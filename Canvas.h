@@ -4,6 +4,7 @@
 #include <QWidget>
 #include <QMouseEvent>
 #include <QPainter>
+#include <cmath>
 
 class Canvas : public QWidget
 {

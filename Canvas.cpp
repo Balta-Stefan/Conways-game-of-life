@@ -103,8 +103,10 @@ void Canvas::wheelEvent(QWheelEvent *event)
     cellWidth += isZooming*zoomValue;
     cellHeight += isZooming*zoomValue;
 
-    numOfScreenHorizontalCells = CanvasWidth / cellWidth;
-    numOfScreenVerticalCells = CanvasHeight / cellHeight;
+    //qInfo() << "CanvasHeight / cellHeight=" << (double)CanvasHeight / cellHeight;
+    qInfo() << "Selected cell (world):" << selectedUpperLeftCellX-1+cellX << "," << selectedUpperLeftCellY-1+cellY;
+    numOfScreenHorizontalCells = std::ceil((double)CanvasWidth / cellWidth);
+    numOfScreenVerticalCells = std::ceil((double)CanvasHeight / cellHeight);
 
     if((numOfScreenHorizontalCells >= numOfHorizontalCells) || (numOfScreenVerticalCells >= numOfVerticalCells))
     {
@@ -134,8 +136,23 @@ void Canvas::wheelEvent(QWheelEvent *event)
     //if offsetX is positive, the cells need to be moved to the left.If offsetY is positive, cells need to be moved up.
 
     //offset could eliminate some cells entirely, check for such situation (next 2 values can be positive or negative)
-    int losingHorizontalCells = screenOffsetX / cellWidth;
-    int losingVerticalCells = screenOffsetY / cellHeight;
+
+    //number of whole cells per each axis that will be removed due to the offsets.
+    int horizontalCellGain, verticalCellGain;
+    qInfo() << "----------gains are:" << (double)screenOffsetX/cellWidth << "," << (double)screenOffsetY/cellHeight;
+
+    if(isZooming > 0)
+    {
+        horizontalCellGain = screenOffsetX / cellWidth;
+        verticalCellGain = screenOffsetY / cellHeight;
+    }
+    else
+    {
+        //floor and ceil work the same for negative numbers - they both round the number to the next greater number.That's why there are 2 multiplications with negative 1 - to convert the number to positive, and then to revert it back to negative.
+        horizontalCellGain = -1*std::ceil(-1*(double)screenOffsetX / cellWidth);
+        verticalCellGain = -1*std::ceil(-1*(double)screenOffsetY / cellHeight);
+    }
+    qInfo() << "----------final gains:" << horizontalCellGain << "," << verticalCellGain;
 
 
 
@@ -143,8 +160,16 @@ void Canvas::wheelEvent(QWheelEvent *event)
     offsetY = (screenOffsetY > 0) ? (cellHeight-std::abs(screenOffsetY)%cellHeight) : (std::abs(screenOffsetY)%cellHeight);
 
     //if offset is == to 0, then all cells fit on the screen and the first line is at a coordinate equal to the cell(width/height)
-    offsetX += (offsetX == 0) ? cellWidth : 0;
-    offsetY += (offsetY == 0) ? cellHeight : 0;
+    if(offsetX != 0)
+        numOfScreenHorizontalCells++;
+    else
+        offsetX = cellWidth;
+    if(offsetY != 0)
+        numOfScreenVerticalCells++;
+    else
+        offsetY = cellHeight;
+    //offsetX += (offsetX == 0) ? cellWidth : 0;
+    //offsetY += (offsetY == 0) ? cellHeight : 0;
 
 
     //numOfScreenHorizontalCells += (offsetX != cellWidth) ? 1 : 0;
@@ -152,22 +177,22 @@ void Canvas::wheelEvent(QWheelEvent *event)
 
 
     //shift the screen area
-    qInfo() << "The new upper cells SHOULD be:" << selectedUpperLeftCellX+losingHorizontalCells << "," << selectedUpperLeftCellY+losingVerticalCells;
 
-    selectedUpperLeftCellX = std::max(1, selectedUpperLeftCellX+losingHorizontalCells);
-    selectedUpperLeftCellY = std::max(1, selectedUpperLeftCellY+losingVerticalCells);
+    selectedUpperLeftCellX = std::max(1, selectedUpperLeftCellX+horizontalCellGain);
+    selectedUpperLeftCellY = std::max(1, selectedUpperLeftCellY+verticalCellGain);
 
-    qInfo() << "Selected cell (world):" << selectedUpperLeftCellX+cellX-1 << "," << selectedUpperLeftCellY+cellY-1;
+
+
 
     //ceil(cellWidth/(canvasWidth % cellWidth))
-    qInfo() << "PROBLEM SA NEISPRAVNIM RACUNANJEM BROJA VIDLJIVIH CELIJA JE ZBOG OSTATKA.AKO IMAMO OFFSET, TREBA VIDJETI KOLIKO CE SE GRESKE UVESTI ZA SVAKU LINIJU, TO MOZE BITI VISE OD JEDNE CELIJE, treba pogledati ostatak od canvasSize/cellSize, podijeliti dimenziju celije sa tim i uzeti ceil()";
+    //qInfo() << "PROBLEM SA NEISPRAVNIM RACUNANJEM BROJA VIDLJIVIH CELIJA JE ZBOG OSTATKA.AKO IMAMO OFFSET, TREBA VIDJETI KOLIKO CE SE GRESKE UVESTI ZA SVAKU LINIJU, TO MOZE BITI VISE OD JEDNE CELIJE, treba pogledati ostatak od canvasSize/cellSize, pomnoziti to sa brojem cijelih celija (ne offsetovanih), podijeliti to sa dimenzijom celije i uzeti ceil()";
     qInfo() << "canvasHeight % cellHeight=" << CanvasHeight % cellHeight;
     qInfo() << "Selected coordinates: " << event->x() << "," << event->y();
     qInfo() << "Selected cell (screen): " << cellX << "," << cellY;
     qInfo() << "Selected parts: " << partX << "," << partY;
     qInfo() << "New positions of the part: " << newPartXCoordinate << "," << newPartYCoordinate;
     qInfo() << "Difference: " << screenOffsetX << "," << screenOffsetY;
-    qInfo() << "Cell gain: " << losingHorizontalCells << "," << losingVerticalCells;
+    qInfo() << "Cell gain: " << horizontalCellGain << "," << verticalCellGain;
     qInfo() << "new offsets:" << offsetX << "," << offsetY;
     qInfo() << "New dimensions of the cell: " << cellWidth << "," << cellHeight;
     qInfo() << "selected upper cells (starting from 1,1):" << selectedUpperLeftCellX << "," << selectedUpperLeftCellY;
@@ -228,17 +253,17 @@ void Canvas::paintEvent(QPaintEvent *)
 
 
     //upper left cell
-    //if(world[selectedUpperLeftCellY][selectedUpperLeftCellX] == true)
+    if(world[selectedUpperLeftCellY][selectedUpperLeftCellX] == true)
         paint.drawRect(QRect(0, 0, offsetX, offsetY));
 
     //upper right cell
-    //if(world[selectedUpperLeftCellY][rightCellXIndex] == true)
+    if(world[selectedUpperLeftCellY][rightCellXIndex] == true)
         paint.drawRect(QRect(rightCellCoordinateX, 0, cellWidth, offsetY)); //cell width will go beyond screen area
     //down left cell
-    //if(world[rightCellYIndex][selectedUpperLeftCellX] == true) //not working
+    if(world[rightCellYIndex][selectedUpperLeftCellX] == true) //not working
         paint.drawRect(QRect(0, downCellCoordinateY, offsetX, cellHeight)); //cell height will go beyond screen area
     //down right cell
-    //if(world[rightCellYIndex][rightCellXIndex] == true) //not working
+    if(world[rightCellYIndex][rightCellXIndex] == true) //not working
         paint.drawRect(QRect(rightCellCoordinateX, downCellCoordinateY, cellWidth, cellHeight)); //cell dimensions will go beyond screen bounds
 
     //first row
@@ -279,31 +304,32 @@ void Canvas::paintEvent(QPaintEvent *)
 
 /*
 ===========================================================================
-The new upper cells SHOULD be: 4 , 5
-Selected cell (world): 5 , 7
-Selected coordinates:  177 , 139
-Selected cell (screen):  3 , 3
-Selected parts:  33 , 35
-New positions of the part:  283 , 170
-Difference:  106 , 31
-Cell gain:  1 , 0
-new offsets: 64 , 20
-New dimensions of the cell:  85 , 51
-selected upper cells (starting from 1,1): 4 , 5
-number of cells:  16 , 15
+Selected cell (world): 12 , 17
+canvasHeight % cellHeight= 0
+Selected coordinates:  397 , 315
+Selected cell (screen):  10 , 12
+Selected parts:  37 , 50
+New positions of the part:  456 , 375
+Difference:  59 , 60
+Cell gain:  1 , 2
+new offsets: 29 , 30
+New dimensions of the cell:  44 , 30
+selected upper cells (starting from 1,1): 4 , 8
+number of cells:  31 , 25
 ===========================================================================
-The new upper cells SHOULD be: 4 , 5
-Selected cell (world): 5 , 7
-Selected coordinates:  177 , 139
-Selected cell (screen):  2 , 3
-Selected parts:  32 , 33
-New positions of the part:  148 , 123
-Difference:  -29 , -16
-Cell gain:  0 , 0
-new offsets: 35 , 21
-New dimensions of the cell:  64 , 37
-selected upper cells (starting from 1,1): 4 , 5
-number of cells:  21 , 20
+Selected cell (world): 12 , 17
+canvasHeight % cellHeight= 18
+Selected coordinates:  397 , 315
+Selected cell (screen):  9 , 10
+Selected parts:  36 , 50
+New positions of the part:  374 , 273
+Difference:  -23 , -42
+Cell gain:  0 , -1
+new offsets: 23 , 16
+New dimensions of the cell:  40 , 26
+selected upper cells (starting from 1,1): 4 , 7 -> PROBLEM, x se mora umanjiti za 1, zasto je ostalo isto?Zato se celija pomjerila ulijevo.
+number of cells:  33 , 29
 ===========================================================================
 
+-new cell should be at: x=374
 */
