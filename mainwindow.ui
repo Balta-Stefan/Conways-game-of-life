@@ -99,7 +99,7 @@
      </layout>
     </item>
     <item>
-     <widget class="Canvas" name="widget" native="true">
+     <widget class="Canvas" name="canvas" native="true">
       <property name="minimumSize">
        <size>
         <width>1280</width>
@@ -140,9 +140,44 @@
     <slot>changeNumOfWorkers(int)</slot>
     <slot>changeNumOfIterations(int)</slot>
     <slot>reset()</slot>
+    <slot>start()</slot>
+    <slot>stop()</slot>
    </slots>
   </customwidget>
  </customwidgets>
  <resources/>
- <connections/>
+ <connections>
+  <connection>
+   <sender>pushButton_3</sender>
+   <signal>clicked()</signal>
+   <receiver>canvas</receiver>
+   <slot>start()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>56</x>
+     <y>83</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>278</x>
+     <y>228</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>pushButton_4</sender>
+   <signal>clicked()</signal>
+   <receiver>canvas</receiver>
+   <slot>stop()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>147</x>
+     <y>82</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>225</x>
+     <y>126</y>
+    </hint>
+   </hints>
+  </connection>
+ </connections>
 </ui>

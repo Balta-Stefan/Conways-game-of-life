@@ -1,20 +1,59 @@
 ﻿#include <Canvas.h>
+#include <QThread>
 
 Canvas::Canvas(QWidget *parent) : QWidget(parent)
 {
-    cellWidth = offsetX = CanvasWidth / numOfHorizontalCells;
-    cellHeight = offsetY = CanvasHeight / numOfVerticalCells;
+    //connect(&renderingThread, &RenderThread::renderedImage, this, &MandelbrotWidget::updatePixmap);
+    //connect(otherThreadAddress, otherThreadSignalAddress, receiverAddress, receiverSlotAddress)
+    connect(&calculator, &LifeCalculator::sendNewWorld, this, &Canvas::sendNewGeneration); //which connection type should be used (slot and signal are in different threads)?
 
-    for(int i = 0; i < numOfVerticalCells+2; i++)
-        for(int j = 0; j < numOfHorizontalCells+2; j++)
-            world[i][j] = false;
+    offsetX = cellWidth;
+    offsetY = cellHeight;
+    calculator.init(numOfHorizontalCells+2, numOfVerticalCells+2);
+
+    qInfo() << "canvas ctor";
+    qInfo() << "offsets are: " << offsetX << "," << offsetY;
+    world = calculator.world;
+
+    calculator.start();
+    //QtConcurrent::run(this, &Canvas::play);
 }
+
+void Canvas::skipGenerations(int skipToGeneration)
+{
+    calculator.skipGenerations(skipToGeneration);
+}
+
+void Canvas::sendNewGeneration(bool* newWorld)
+{
+    delete[] world;
+    world = newWorld;
+
+    update();
+}
+
+void Canvas::start()
+{
+    qInfo() << "i am started";
+    calculator.startSimulation(world);
+    //mutex.unlock();
+}
+
+void Canvas::stop()
+{
+    //mutex.lock();
+    run = false;
+    calculator.stop();
+    qInfo() << "stopped!";
+}
+
 
 void Canvas::determineClickedCell(int x, int y, int &resultX, int &resultY)
 {
     resultX = (x <= offsetX) ? 0 : ((x-offsetX)/cellWidth + 1);
     resultY = (y <= offsetY) ? 0 : ((y-offsetY)/cellHeight + 1);
 }
+
 
 
 void Canvas::mousePressEvent(QMouseEvent *event)
@@ -32,9 +71,11 @@ void Canvas::mousePressEvent(QMouseEvent *event)
     }
     else
         return;
-    world[selectedUpperLeftCellY+clickedCellY][selectedUpperLeftCellX+clickedCellX] = true;
+    int row = (selectedUpperLeftCellY+clickedCellY)*numOfRealHorizontalCells;
+    int column = selectedUpperLeftCellX+clickedCellX;
+    world[row + column] = true; //MIGHT BE INCORRECT
+    //world[selectedUpperLeftCellY+clickedCellY][selectedUpperLeftCellX+clickedCellX] = true;
     update();
-
 }
 
 void Canvas::mouseMoveEvent(QMouseEvent *event)
@@ -51,9 +92,22 @@ void Canvas::mouseMoveEvent(QMouseEvent *event)
     if((newCellX > numOfScreenHorizontalCells) || (newCellY > numOfScreenVerticalCells) || (newCellX < 0) || (newCellY < 0)) //to avoid out of bounds array access
         return;
     qInfo() << "updated cell: " << newCellX << "," << newCellY;
-    world[selectedUpperLeftCellY+newCellY][selectedUpperLeftCellX+newCellX] = true;
+
+    int row = (selectedUpperLeftCellY+newCellY)*numOfRealHorizontalCells;
+    int column = selectedUpperLeftCellX+newCellX;
+    world[row + column] = true; //MIGHT BE INCORRECT
+
+    //world[selectedUpperLeftCellY+newCellY][selectedUpperLeftCellX+newCellX] = true;
     update();
 
+}
+
+void Canvas::updateCanvasElements()
+{
+    rightCellCoordinateX = offsetX + (numOfScreenHorizontalCells-2)*cellWidth;
+    downCellCoordinateY = offsetY + (numOfScreenVerticalCells-2)*cellHeight;
+    rightCellXIndex = selectedUpperLeftCellX + numOfScreenHorizontalCells-1;
+    rightCellYIndex = selectedUpperLeftCellY + numOfScreenVerticalCells - 1;
 }
 
 void Canvas::wheelEvent(QWheelEvent *event)
@@ -117,6 +171,7 @@ void Canvas::wheelEvent(QWheelEvent *event)
         cellHeight = offsetY = CanvasHeight / numOfVerticalCells;
 
         selectedUpperLeftCellX = selectedUpperLeftCellY = 1;
+        updateCanvasElements();
         update();
         return;
     }
@@ -178,14 +233,34 @@ void Canvas::wheelEvent(QWheelEvent *event)
 
     //shift the screen area
 
-    selectedUpperLeftCellX = std::max(1, selectedUpperLeftCellX+horizontalCellGain);
-    selectedUpperLeftCellY = std::max(1, selectedUpperLeftCellY+verticalCellGain);
+    int newUpperLeftCellX = selectedUpperLeftCellX+horizontalCellGain;
+    int newUpperLeftCellY = selectedUpperLeftCellY+verticalCellGain;
+
+    //check if we're trying to display more cells than we can (which will lead to out of bounds array access)
+    qInfo() << "offsets have to be modified if we are going out of bounds!"; //the last cell on the right/down side should be the last one.It shouldn't disappear!
+    if((newUpperLeftCellX + numOfScreenHorizontalCells - 1) > numOfHorizontalCells)
+        newUpperLeftCellX -= (newUpperLeftCellX + numOfScreenHorizontalCells - 1 - numOfHorizontalCells);
+    if((newUpperLeftCellY + numOfScreenVerticalCells - 1) > numOfVerticalCells)
+        newUpperLeftCellY -= (newUpperLeftCellY + numOfScreenVerticalCells - 1 - numOfVerticalCells);
+
+    /*0
+     *1
+     *2
+     *3
+     *4
+     *5
+     *6
+     * */
+
+    selectedUpperLeftCellX = std::max(1, newUpperLeftCellX);
+    selectedUpperLeftCellY = std::max(1, newUpperLeftCellY);
 
 
 
 
     //ceil(cellWidth/(canvasWidth % cellWidth))
     //qInfo() << "PROBLEM SA NEISPRAVNIM RACUNANJEM BROJA VIDLJIVIH CELIJA JE ZBOG OSTATKA.AKO IMAMO OFFSET, TREBA VIDJETI KOLIKO CE SE GRESKE UVESTI ZA SVAKU LINIJU, TO MOZE BITI VISE OD JEDNE CELIJE, treba pogledati ostatak od canvasSize/cellSize, pomnoziti to sa brojem cijelih celija (ne offsetovanih), podijeliti to sa dimenzijom celije i uzeti ceil()";
+    qInfo() << "PROBLEM: MOZE SE DESITI DA ZBOG SELECTEDUPPERCELL I NUMOFSCREENCELLS POKUSAVAM PRIKAZATI VISE CELIJA NEGO STO POSTOJI PA DOLAZI DO OUT OF BOUNDS PRISTUPA";
     qInfo() << "canvasHeight % cellHeight=" << CanvasHeight % cellHeight;
     qInfo() << "Selected coordinates: " << event->x() << "," << event->y();
     qInfo() << "Selected cell (screen): " << cellX << "," << cellY;
@@ -199,6 +274,7 @@ void Canvas::wheelEvent(QWheelEvent *event)
     qInfo() << "number of cells: " << numOfScreenHorizontalCells << "," << numOfScreenVerticalCells;
     qInfo() << "===========================================================================";
 
+    updateCanvasElements();
     update();
 }
 
@@ -232,7 +308,6 @@ void Canvas::paintEvent(QPaintEvent *)
     //debug, remove later
     //paint.drawRect(QRect(cellWidth*5 + cellWidth*0.45, 0, 1, CanvasHeight));
     //paint.drawRect(QRect(0, 3*cellHeight + 0.75*cellHeight, CanvasWidth, 1));
-
     for(int i = offsetX; i < CanvasWidth; i+=cellWidth) //draw vertical lines
         paint.drawRect(QRect(i, 0, 0, CanvasHeight));
 
@@ -244,53 +319,58 @@ void Canvas::paintEvent(QPaintEvent *)
     //first and last rows and columns have to be handled manually because of the offsets
     //corner cells have to be handled separately.In total, that's 8 manually handled drawings
 
-    int rightCellCoordinateX = offsetX + (numOfScreenHorizontalCells-2)*cellWidth;
+    /*int rightCellCoordinateX = offsetX + (numOfScreenHorizontalCells-2)*cellWidth;
     int downCellCoordinateY = offsetY + (numOfScreenVerticalCells-2)*cellHeight;
     int rightCellXIndex = selectedUpperLeftCellX + numOfScreenHorizontalCells-1;
-    int rightCellYIndex = selectedUpperLeftCellY + numOfScreenVerticalCells - 1;
-
-
-
+    int rightCellYIndex = selectedUpperLeftCellY + numOfScreenVerticalCells - 1;*/
 
     //upper left cell
-    if(world[selectedUpperLeftCellY][selectedUpperLeftCellX] == true)
+    //if(world[selectedUpperLeftCellY][selectedUpperLeftCellX] == true)
+    if(world[selectedUpperLeftCellY*numOfRealHorizontalCells + selectedUpperLeftCellX] == true)
         paint.drawRect(QRect(0, 0, offsetX, offsetY));
 
     //upper right cell
-    if(world[selectedUpperLeftCellY][rightCellXIndex] == true)
+    //if(world[selectedUpperLeftCellY][rightCellXIndex] == true)
+    if(world[selectedUpperLeftCellY*numOfRealHorizontalCells + rightCellXIndex] == true)
         paint.drawRect(QRect(rightCellCoordinateX, 0, cellWidth, offsetY)); //cell width will go beyond screen area
     //down left cell
-    if(world[rightCellYIndex][selectedUpperLeftCellX] == true) //not working
+    //if(world[rightCellYIndex][selectedUpperLeftCellX] == true) //not working
+    if(world[rightCellYIndex*numOfRealHorizontalCells + selectedUpperLeftCellX] == true)
         paint.drawRect(QRect(0, downCellCoordinateY, offsetX, cellHeight)); //cell height will go beyond screen area
     //down right cell
-    if(world[rightCellYIndex][rightCellXIndex] == true) //not working
+    //if(world[rightCellYIndex][rightCellXIndex] == true) //not working
+    if(world[rightCellYIndex*numOfRealHorizontalCells + rightCellXIndex] == true)
         paint.drawRect(QRect(rightCellCoordinateX, downCellCoordinateY, cellWidth, cellHeight)); //cell dimensions will go beyond screen bounds
 
     //first row
     for(int i = 0; i < numOfScreenHorizontalCells-2; i++) //skipping 2 because they were handled as upper left and upper right corner cells
-        if(world[selectedUpperLeftCellY][selectedUpperLeftCellX+i+1] == true)
+        //if(world[selectedUpperLeftCellY][selectedUpperLeftCellX+i+1] == true)
+        if(world[selectedUpperLeftCellY*numOfRealHorizontalCells + selectedUpperLeftCellX+i+1] == true)
             paint.drawRect(QRect(offsetX + cellWidth*i, 0, cellWidth, offsetY));
     //last row (also paints the last cell in the first row - upper right cell)
     for(int i = 0; i < numOfScreenHorizontalCells-2; i++) //NOT WORKING AT ALL, see by commenting out the if line
-        if(world[rightCellYIndex][selectedUpperLeftCellX+i+1] == true)
+        //if(world[rightCellYIndex][selectedUpperLeftCellX+i+1] == true)
+        if(world[rightCellYIndex*numOfRealHorizontalCells + selectedUpperLeftCellX+i+1] == true)
             paint.drawRect(QRect(offsetX + cellWidth*i, downCellCoordinateY, cellWidth, cellHeight)); //cell height will go beyond screen bounds
     //first column
     for(int i = 0; i < numOfScreenVerticalCells-2; i++)
-        if(world[selectedUpperLeftCellY+i+1][selectedUpperLeftCellX] == true)
+        //if(world[selectedUpperLeftCellY+i+1][selectedUpperLeftCellX] == true)
+        if(world[(selectedUpperLeftCellY+i+1)*numOfRealHorizontalCells + selectedUpperLeftCellX] == true)
             paint.drawRect(QRect(0, offsetY + cellHeight*i, offsetX, cellHeight));
 
     //last column
     for(int i = 0; i < numOfScreenVerticalCells-2; i++) //ALSO NOT WORKING AT ALL
-        if(world[selectedUpperLeftCellY+i+1][rightCellXIndex] == true)
+        //if(world[selectedUpperLeftCellY+i+1][rightCellXIndex] == true)
+        if(world[(selectedUpperLeftCellY+i+1)*numOfRealHorizontalCells + rightCellXIndex] == true)
             paint.drawRect(QRect(rightCellCoordinateX, offsetY + cellHeight*i, cellWidth, cellHeight)); //cell width will go beyond screen bounds
 
 
     //everything else
     for(int j = 1; j < numOfScreenVerticalCells-1; j++)
         for(int i = 1; i < numOfScreenHorizontalCells-1; i++)
-            if(world[selectedUpperLeftCellY+j][selectedUpperLeftCellX+i] == true)
+            //if(world[selectedUpperLeftCellY+j][selectedUpperLeftCellX+i] == true)
+            if(world[(selectedUpperLeftCellY+j)*numOfRealHorizontalCells + selectedUpperLeftCellX+i] == true)
                 paint.drawRect(QRect(offsetX + cellWidth*(i-1), offsetY + cellHeight*(j-1), cellWidth, cellHeight));
-
 
 
     /*for(int j = 1; j <= numOfVerticalCells; j++)

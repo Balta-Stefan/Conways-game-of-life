@@ -13,3 +13,11 @@ MainWindow::~MainWindow()
     delete ui;
 }
 
+
+
+void MainWindow::on_pushButton_clicked()
+{
+    int generation = ui->lineEdit->text().toInt();
+    qInfo() << "ui->canvas generation: " << generation;
+    ui->canvas->skipGenerations(generation);
+}

@@ -41,3 +41,6 @@ win32: LIBS += -L$$PWD/'../../../../../Program Files/NVIDIA GPU Computing Toolki
 
 INCLUDEPATH += $$PWD/'../../../../../Program Files/NVIDIA GPU Computing Toolkit/CUDA/v11.2/include'
 DEPENDPATH += $$PWD/'../../../../../Program Files/NVIDIA GPU Computing Toolkit/CUDA/v11.2/include'
+
+DISTFILES += \
+    Conway.cl
