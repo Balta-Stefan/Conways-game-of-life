@@ -1,6 +1,6 @@
 #include <LifeCalculator.h>
 #include <QDebug>
-
+#include <QTime>
 
 
 /*GPGPU algorithm:
@@ -210,18 +210,23 @@ void LifeCalculator::run()
 
     startMutex.lock(); //in order to wait on this mutex, this thread has to hold the mutex
 
+    //QTime time;
+    //int max = 5000;
+
     while(runSimulation)
+    //while(currentGeneration < max)
     {
         while(paused)
         {
             waitCondition.wait(&startMutex);
+            //time.start();
         }
         //bool* newWorld = simulateLifeSerialCPU();
         bool* newWorld = simulateLifeGPU();
         if(currentGeneration > jumpToGeneration)
         {
             emit sendNewWorld(newWorld);
-            msleep(10);
+            msleep(25);
             //emit sendNewWorld(ptr);
         }
         else if(currentGeneration == jumpToGeneration)
@@ -232,6 +237,11 @@ void LifeCalculator::run()
         currentGeneration++;
         qInfo() << "Current generation: " << currentGeneration;
     }
+    //int elapsed = time.elapsed();
+    //qInfo() << "elapsed: " << elapsed << " generations/elapsed[g/ms]=" << (double)currentGeneration/elapsed;
+
+    //GPGPU: elapsed=606[ms], g/ms = 8
+    //CPU serial: elapsed=2834[ms], g/ms = 1
     deallocate();
 }
 bool* LifeCalculator::simulateLifeSerialCPU()

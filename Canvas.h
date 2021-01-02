@@ -51,7 +51,7 @@ private:
     static const int CanvasWidth = 1280, CanvasHeight = 720;
     int cellWidth = CanvasWidth / numOfHorizontalCells, cellHeight = CanvasHeight / numOfVerticalCells;
     int offsetX, offsetY; //represent offsets because of the zoom implementation (the part of the cell that was zoomed at will still be under the mouse cursor after zooming).When all cells have the same dimension, offsets will be equal to cell dimension
-    static const int numOfHorizontalCells = 80, numOfVerticalCells = 80; //dimension of the world
+    static const int numOfHorizontalCells = 160, numOfVerticalCells = 240; //dimension of the world
     static const int numOfRealHorizontalCells = numOfHorizontalCells+2, numOfRealVerticalCells = numOfVerticalCells+2;
     int numOfScreenHorizontalCells = numOfHorizontalCells, numOfScreenVerticalCells = numOfVerticalCells; //number of cells visible on the screen
     int clickedCellX, clickedCellY; //to avoid redrawing the screen, when dragging the mouse, if the cursor is still in the same cell
