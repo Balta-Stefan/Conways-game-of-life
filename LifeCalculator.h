@@ -13,7 +13,8 @@ class LifeCalculator : public QThread
 public:
     //LifeCalculator(int numOfHorizontalCells, int numOfVerticalCells);
     void funkcija();
-    bool* doLife();
+    bool* simulateLifeSerialCPU();
+    bool* simulateLifeGPU();
     bool* world;
     void init(int numOfHorizontalCells, int numOfVerticalCells);
     void pause(bool pause);
@@ -52,6 +53,7 @@ private:
     cl_command_queue queue;           // command queue
     cl_program program;               // program
     cl_kernel kernel;                 // kernel
+    size_t globalSize, localSize, sizeOfTheWorld, sizeOfTheRealWorld;
 
     static const int maxNumberOfPrecomputedGenerations=50;
     const char* TranslateOpenCLError(cl_int errorCode);

@@ -27,35 +27,33 @@
 void LifeCalculator::startSimulation(bool* world)
 {
     cl_int err;
+    this->world = world; //this is not necessary as they are both equal because GUI took it right after calling LifeCalculator::init().
 
     // Write our data set into the arrays in device memory
-    err = clEnqueueWriteBuffer(queue, GPUCurrentGeneration, CL_TRUE, 0, numOfHorizontalCells*numOfVerticalCells*sizeof(bool), world, 0, NULL, NULL);
-    err |= clEnqueueWriteBuffer(queue, GPUNewGeneration, CL_TRUE, 0, numOfHorizontalCells*numOfVerticalCells*sizeof(bool), world, 0, NULL, NULL);
-    qInfo() << "GPU allocation error: " << err;
+    err = clEnqueueWriteBuffer(queue, GPUCurrentGeneration, CL_TRUE, 0, sizeOfTheWorld, world, 0, NULL, NULL);
+    qInfo() << "--Error after first copy:" << TranslateOpenCLError(err);
+    err = clEnqueueWriteBuffer(queue, GPUNewGeneration, CL_TRUE, 0, sizeOfTheWorld, world, 0, NULL, NULL);
+    qInfo() << "--Error after second copy:" << TranslateOpenCLError(err);
+    //clFinish(queue);  not necessary because the calls are blocking (flag CL_TRUE)
 
-    this->world = world;
+
     paused = false;
     waitCondition.notify_all();
 }
 
 void LifeCalculator::GPUInit()
 {
-    // Length of vectors
-    unsigned int n = numOfHorizontalCells*numOfVerticalCells;
+    // Size of the world in bytes
 
     // Host input vectors
     //bool** GPUWorld;
     // Host output vector
     //bool* hostWorld;
 
-
-
-    size_t bytes = n * sizeof(bool); // Size, in bytes, of the world
-
     // Allocate memory for the world on host
     //hostWorld = (bool*)calloc(n, sizeof(bool));
 
-    size_t globalSize, localSize;
+
     cl_int err;
 
     // Bind to platform
@@ -78,38 +76,41 @@ void LifeCalculator::GPUInit()
 
     // Create the compute program from the source buffer
     program = clCreateProgramWithSource(context, 1, (const char**)&kernelSource, NULL, &err);
-
+    delete[] kernelSource;
+    //free(kernelSource);
 
     // Build the program executable
     err = clBuildProgram(program, 0, NULL, NULL, NULL, NULL);
     qInfo() << "err after building program: " << TranslateOpenCLError(err);
 
 
-    if (err)
+    if (err != CL_SUCCESS)
     {
         qInfo() << "ERROR!";
         // Determine the size of the log
         size_t log_size;
         clGetProgramBuildInfo(program, device_id, CL_PROGRAM_BUILD_LOG, 0, NULL, &log_size);
-        qInfo() << log_size;
-
+        qInfo() << "log size=" << log_size;
         // Allocate memory for the log
-        char* log = (char*)malloc(log_size);
+        char* log = new char[log_size];
+        //char* log = (char*)malloc(log_size);
 
         // Get the log
         clGetProgramBuildInfo(program, device_id, CL_PROGRAM_BUILD_LOG, log_size, log, NULL);
-
         // Print the log
-        qInfo() << "log= " << log;
-        //printf("%s\n", log);
+        //qInfo() << "log= " << log;
+        //printf("the error is: %s\n", log);
+        qInfo() << "the error is: " << log;
 
-        free(log);
+        delete[] log;
+        //free(log);
         return; //notify the GUI using signal/slot mechanism.The passed value should be a string.
     }
 
     // Create the compute kernel in the program we wish to run
-    kernel = clCreateKernel(program, "doLife", &err);
-    qInfo() << " clGetKernelWorkGroupInfo  return value: " <<  clGetKernelWorkGroupInfo(kernel, device_id, CL_KERNEL_WORK_GROUP_SIZE, sizeof(localSize), &localSize, NULL);
+    kernel = clCreateKernel(program, "simulateLife", &err);
+    qInfo() << "clCreateKernel error: " << TranslateOpenCLError(err);
+    qInfo() << " clGetKernelWorkGroupInfo return value: " <<  TranslateOpenCLError(clGetKernelWorkGroupInfo(kernel, device_id, CL_KERNEL_WORK_GROUP_SIZE, sizeof(localSize), &localSize, NULL));
     qInfo() << "localSize:" << localSize;
 
     // Number of work items in each local work group
@@ -117,11 +118,12 @@ void LifeCalculator::GPUInit()
     //localSize = 512;
 
     // Number of total work items - localSize must be devisor
-    globalSize = (size_t)ceil(n / (float)localSize) * localSize;
+    globalSize = (size_t)ceil(sizeOfTheRealWorld / (float)localSize) * localSize;
+    qInfo() << "Global size=" << globalSize;
 
     // Create the worlds in device memory for our calculation
-    GPUCurrentGeneration = clCreateBuffer(context, CL_MEM_READ_WRITE, bytes, NULL, NULL);
-    GPUNewGeneration = clCreateBuffer(context, CL_MEM_READ_WRITE, bytes, NULL, NULL);
+    GPUCurrentGeneration = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeOfTheWorld, NULL, NULL);
+    GPUNewGeneration = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeOfTheWorld, NULL, NULL);
 
     // Write our data set into the arrays in device memory
     //err = clEnqueueWriteBuffer(queue, GPUCurrentGeneration, CL_TRUE, 0, bytes, hostWorld, 0, NULL, NULL);
@@ -136,24 +138,26 @@ void LifeCalculator::GPUInit()
     clFinish(queue);
 
     // Execute the kernel over the entire range of the data set
-    err = clEnqueueNDRangeKernel(queue, kernel, 1, NULL, &globalSize, &localSize, 0, NULL, NULL);
+    //err = clEnqueueNDRangeKernel(queue, kernel, 1, NULL, &globalSize, &localSize, 0, NULL, NULL);
 
     // Wait for the command queue to get serviced before reading back results
-    clFinish(queue);
+    //clFinish(queue);
 
     // Read the results from the device
     //clEnqueueReadBuffer(queue, d_c, CL_TRUE, 0, bytes, h_c, 0, NULL, NULL);
 
-    clFinish(queue);
+    //clFinish(queue);
 
 
-    free(kernelSource);
+
 }
 
 void LifeCalculator::init(int numOfHorizontalCells, int numOfVerticalCells)
 {
     this->numOfHorizontalCells = numOfHorizontalCells;
     this->numOfVerticalCells = numOfVerticalCells;
+    sizeOfTheRealWorld = (numOfHorizontalCells-2)*(numOfVerticalCells-2);
+    sizeOfTheWorld = numOfHorizontalCells*numOfVerticalCells;
     world = createNewWorld();
 
     //perform GPU initialization
@@ -170,6 +174,36 @@ void LifeCalculator::skipGenerations(int generation)
     jumpToGeneration = generation;
 }
 
+bool* LifeCalculator::simulateLifeGPU()
+{
+    bool* newGeneration = new bool[sizeOfTheWorld];
+    cl_int err;
+    //swap current generation with next generation
+    cl_mem temp = GPUNewGeneration;
+    GPUNewGeneration = GPUCurrentGeneration;
+    GPUCurrentGeneration = temp;
+
+    //set kernel arguments
+    err = clSetKernelArg(kernel, 0, sizeof(cl_mem), &GPUCurrentGeneration);
+    err |= clSetKernelArg(kernel, 1, sizeof(cl_mem), &GPUNewGeneration);
+    err |= clSetKernelArg(kernel, 2, sizeof(int), &numOfHorizontalCells);
+    err |= clSetKernelArg(kernel, 3, sizeof(int), &numOfVerticalCells);
+    //qInfo() << "Error after setting arguments: " << TranslateOpenCLError(err);
+
+    // Execute the kernel over the entire range of the data set
+    err = clEnqueueNDRangeKernel(queue, kernel, 1, NULL, &globalSize, &localSize, 0, NULL, NULL);
+    //qInfo() << "Error after executing the kernel: " << TranslateOpenCLError(err);
+
+    // Wait for the command queue to get serviced before reading back results
+    clFinish(queue);
+
+    // Read the results from the device
+    clEnqueueReadBuffer(queue, GPUNewGeneration, CL_TRUE, 0, sizeOfTheWorld, newGeneration, 0, NULL, NULL);
+
+    clFinish(queue);
+    return newGeneration;
+}
+
 void LifeCalculator::run()
 {
     //first do initialization for GPU
@@ -182,11 +216,12 @@ void LifeCalculator::run()
         {
             waitCondition.wait(&startMutex);
         }
-        bool* newWorld = doLife();
+        //bool* newWorld = simulateLifeSerialCPU();
+        bool* newWorld = simulateLifeGPU();
         if(currentGeneration > jumpToGeneration)
         {
             emit sendNewWorld(newWorld);
-            msleep(100);
+            msleep(10);
             //emit sendNewWorld(ptr);
         }
         else if(currentGeneration == jumpToGeneration)
@@ -197,6 +232,57 @@ void LifeCalculator::run()
         currentGeneration++;
         qInfo() << "Current generation: " << currentGeneration;
     }
+    deallocate();
+}
+bool* LifeCalculator::simulateLifeSerialCPU()
+{
+    //bool newWorld[numOfVerticalCells+2][numOfHorizontalCells+2];
+
+    bool *newWorld = createNewWorld();
+
+    for(int j = 1; j < numOfVerticalCells-1; j++)
+        for(int i = 1; i < numOfHorizontalCells-1; i++)
+        {
+            int neighbours = numOfNeighbours(i, j);
+
+            if(neighbours == 3)
+                newWorld[j*numOfHorizontalCells+i] = true;
+                //newWorld[j][i] = true;
+            else if((neighbours == 2) && (world[j*numOfHorizontalCells+i] == true))
+                newWorld[j*numOfHorizontalCells+i] = true;
+            else
+                newWorld[j*numOfHorizontalCells+i] = false;
+        }
+    //deleteArray(world);
+    //notify the GUI thread
+
+
+    world = newWorld;
+    return newWorld;
+}
+int LifeCalculator::numOfNeighbours(int x, int y)
+{
+    int neighbours = 0;
+    if(world[(y-1)*numOfHorizontalCells+x-1] == true)
+        neighbours++;
+    if(world[(y-1)*numOfHorizontalCells+x] == true)
+        neighbours++;
+    if(world[(y-1)*numOfHorizontalCells+x+1] == true)
+        neighbours++;
+
+    if(world[y*numOfHorizontalCells+x-1] == true)
+        neighbours++;
+    if(world[y*numOfHorizontalCells+x+1] == true)
+        neighbours++;
+
+    if(world[(y+1)*numOfHorizontalCells+x-1] == true)
+        neighbours++;
+    if(world[(y+1)*numOfHorizontalCells+x] == true)
+        neighbours++;
+    if(world[(y+1)*numOfHorizontalCells+x+1] == true)
+        neighbours++;
+
+    return neighbours;
 }
 
 void LifeCalculator::deallocate()
@@ -244,7 +330,8 @@ char* LifeCalculator::readKernelSource(const char* filename)
         fseek(f, 0, SEEK_END);
         length = ftell(f);
         fseek(f, 0, SEEK_SET);
-        kernelSource = (char*)calloc(length, sizeof(char));
+        kernelSource = new char[length];
+        //kernelSource = (char*)calloc(length, sizeof(char));
         if (kernelSource)
             fread(kernelSource, 1, length, f);
         fclose(f);
@@ -252,76 +339,6 @@ char* LifeCalculator::readKernelSource(const char* filename)
     return kernelSource;
 }
 
-int LifeCalculator::numOfNeighbours(int x, int y)
-{
-    int neighbours = 0;
-    if(world[(y-1)*numOfHorizontalCells+x-1] == true)
-        neighbours++;
-    if(world[(y-1)*numOfHorizontalCells+x] == true)
-        neighbours++;
-    if(world[(y-1)*numOfHorizontalCells+x+1] == true)
-        neighbours++;
-
-    if(world[y*numOfHorizontalCells+x-1] == true)
-        neighbours++;
-    if(world[y*numOfHorizontalCells+x+1] == true)
-        neighbours++;
-
-    if(world[(y+1)*numOfHorizontalCells+x-1] == true)
-        neighbours++;
-    if(world[(y+1)*numOfHorizontalCells+x] == true)
-        neighbours++;
-    if(world[(y+1)*numOfHorizontalCells+x+1] == true)
-        neighbours++;
-
-    /*if(world[y-1][x-1] == true)
-        neighbours++;
-    if(world[y-1][x] == true)
-        neighbours++;
-    if(world[y-1][x+1] == true)
-        neighbours++;
-
-    if(world[y][x-1] == true)
-        neighbours++;
-    if(world[y][x+1] == true)
-        neighbours++;
-
-    if(world[y+1][x-1] == true)
-        neighbours++;
-    if(world[y+1][x] == true)
-        neighbours++;
-    if(world[y+1][x+1] == true)
-        neighbours++;*/
-
-
-    return neighbours;
-}
-bool* LifeCalculator::doLife()
-{
-    //bool newWorld[numOfVerticalCells+2][numOfHorizontalCells+2];
-
-    bool *newWorld = createNewWorld();
-
-    for(int j = 1; j < numOfVerticalCells-1; j++)
-        for(int i = 1; i < numOfHorizontalCells-1; i++)
-        {
-            int neighbours = numOfNeighbours(i, j);
-
-            if(neighbours == 3)
-                newWorld[j*numOfHorizontalCells+i] = true;
-                //newWorld[j][i] = true;
-            else if((neighbours == 2) && (world[j*numOfHorizontalCells+i] == true))
-                newWorld[j*numOfHorizontalCells+i] = true;
-            else
-                newWorld[j*numOfHorizontalCells+i] = false;
-        }
-    //deleteArray(world);
-    //notify the GUI thread
-
-
-    world = newWorld;
-    return newWorld;
-}
 
 void LifeCalculator::funkcija()
 {

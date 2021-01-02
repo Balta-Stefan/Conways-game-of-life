@@ -8,18 +8,23 @@
  *
  * */
 
-__kernel simulateLife(__global bool* currentGeneration, __global bool* nextGeneration, int worldWidth, int worldHeight)
+__kernel void simulateLife(__global bool* currentGeneration, __global bool* nextGeneration, int worldWidth, int worldHeight)
 {
     //world dimensions will specify imaginary dimensions.They will account for 2 ghost rows and 2 ghost columns.
     //currentGeneration block will also contain ghost columns and rows.
     //total number of threads = realWorldWidth * realWorldHeight
 
     int location = get_global_id(0);
+    int realWorldWidth = worldWidth-2, realWorldHeight = worldHeight-2;
+
+    if(location > (realWorldWidth*realWorldHeight - 1))
+        return;
+
     //int row = (location / worldWidth + 1)*(worldWidth+2);
     //int column = location % worldWidth + 1;
 
-    int row = location / (worldWidth-2) + 1;
-    int column = location % (worldWidth-2) + 1;
+    int row = location / realWorldWidth + 1;
+    int column = location % realWorldWidth + 1;
 
     int numberOfNeighbours = 0;
     int rowCoordinate = (row-1)*worldWidth;
@@ -53,10 +58,10 @@ __kernel simulateLife(__global bool* currentGeneration, __global bool* nextGener
 
     __global bool* currentCell = &nextGeneration[row*worldWidth + column];
 
-    if(neighbours == 3)
+    if(numberOfNeighbours == 3)
         *currentCell = true;
-    else if((neighbours == 2) && (currentGeneration[row*worldWidth + column] == true))
+    else if((numberOfNeighbours == 2) && (currentGeneration[row*worldWidth + column] == true))
         *currentCell = true;
     else
-        *currentCell = true;
+        *currentCell = false;
 }
