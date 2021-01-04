@@ -10,7 +10,6 @@
  *      -ova metoda ce obavjestavati Canvas koristeci signal/slot mehanizam o novoj generaciji (poslace pokazivac bool**).Canvas klasa je zaduzena za konektovanje signala i slota.
  *
  *Promjene koje korisnik unosi za vrijeme izvrsavanja se ne uzimaju u obzir.Jednom pokrenuta simulacija se ne moze vise modifikovati.
- *Kako ograniciti broj unaprijed izracunatih generacija?Za to je zaduzena Canvas klasa.
  *
  * */
 
@@ -24,7 +23,7 @@
     world = createNewWorld();
 }*/
 
-void LifeCalculator::startSimulation(bool* world)
+void LifeCalculator::startSimulation(unsigned char* world)
 {
     cl_int err;
     this->world = world; //this is not necessary as they are both equal because GUI took it right after calling LifeCalculator::init().
@@ -118,7 +117,7 @@ void LifeCalculator::GPUInit()
     //localSize = 512;
 
     // Number of total work items - localSize must be devisor
-    globalSize = (size_t)ceil(sizeOfTheRealWorld / (float)localSize) * localSize;
+    globalSize = (size_t)ceil((numOfRows-2) * (numOfHorizontalGroups-2) / 2 / (float)localSize) * localSize; //subtracting by 2 because there are 2 invisible rows and 2 invisible columns
     qInfo() << "Global size=" << globalSize;
 
     // Create the worlds in device memory for our calculation
@@ -152,12 +151,12 @@ void LifeCalculator::GPUInit()
 
 }
 
-void LifeCalculator::init(int numOfHorizontalCells, int numOfVerticalCells)
+void LifeCalculator::init(int numOfHorizontalGroups, int numOfRows)
 {
-    this->numOfHorizontalCells = numOfHorizontalCells;
-    this->numOfVerticalCells = numOfVerticalCells;
-    sizeOfTheRealWorld = (numOfHorizontalCells-2)*(numOfVerticalCells-2);
-    sizeOfTheWorld = numOfHorizontalCells*numOfVerticalCells;
+    this->numOfHorizontalGroups = numOfHorizontalGroups;
+    this->numOfRows = numOfRows;
+    //sizeOfTheRealWorld = (numOfHorizontalCells-2)*(numOfVerticalCells-2);
+    sizeOfTheWorld = numOfHorizontalGroups*numOfRows;
     world = createNewWorld();
 
     //perform GPU initialization
@@ -174,9 +173,9 @@ void LifeCalculator::skipGenerations(int generation)
     jumpToGeneration = generation;
 }
 
-bool* LifeCalculator::simulateLifeGPU()
+unsigned char* LifeCalculator::simulateLifeGPU()
 {
-    bool* newGeneration = new bool[sizeOfTheWorld];
+    unsigned char* newGeneration = new unsigned char[sizeOfTheWorld];
     cl_int err;
     //swap current generation with next generation
     cl_mem temp = GPUNewGeneration;
@@ -186,8 +185,8 @@ bool* LifeCalculator::simulateLifeGPU()
     //set kernel arguments
     err = clSetKernelArg(kernel, 0, sizeof(cl_mem), &GPUCurrentGeneration);
     err |= clSetKernelArg(kernel, 1, sizeof(cl_mem), &GPUNewGeneration);
-    err |= clSetKernelArg(kernel, 2, sizeof(int), &numOfHorizontalCells);
-    err |= clSetKernelArg(kernel, 3, sizeof(int), &numOfVerticalCells);
+    //err |= clSetKernelArg(kernel, 2, sizeof(int), &numOfHorizontalCells);
+    //err |= clSetKernelArg(kernel, 3, sizeof(int), &numOfVerticalCells);
     //qInfo() << "Error after setting arguments: " << TranslateOpenCLError(err);
 
     // Execute the kernel over the entire range of the data set
@@ -206,12 +205,10 @@ bool* LifeCalculator::simulateLifeGPU()
 
 void LifeCalculator::run()
 {
-    //first do initialization for GPU
-
     startMutex.lock(); //in order to wait on this mutex, this thread has to hold the mutex
 
     //QTime time;
-    //int max = 5000;
+    //int max = 50000;
 
     while(runSimulation)
     //while(currentGeneration < max)
@@ -221,8 +218,9 @@ void LifeCalculator::run()
             waitCondition.wait(&startMutex);
             //time.start();
         }
-        //bool* newWorld = simulateLifeSerialCPU();
-        bool* newWorld = simulateLifeGPU();
+        //unsigned char* newWorld = simulateLifeSerialCPU();
+        unsigned char* newWorld = simulateLifeGPU();
+        //delete[] newWorld;
         if(currentGeneration > jumpToGeneration)
         {
             emit sendNewWorld(newWorld);
@@ -240,57 +238,61 @@ void LifeCalculator::run()
     //int elapsed = time.elapsed();
     //qInfo() << "elapsed: " << elapsed << " generations/elapsed[g/ms]=" << (double)currentGeneration/elapsed;
 
-    //GPGPU: elapsed=606[ms], g/ms = 8
-    //CPU serial: elapsed=2834[ms], g/ms = 1
+    //GPGPU: elapsed=7286,  generations/elapsed[g/ms]= 6.86248, uchar: elapsed=5037,  generations/elapsed[g/ms]= 9.92654, packed: to do
+    //CPU serial: elapsed=26816,  generations/elapsed[g/ms]= 1.86456, uchar: elapsed=26797,  generations/elapsed[g/ms]= 1.86588, packed: to do
+    startMutex.unlock();
     deallocate();
 }
-bool* LifeCalculator::simulateLifeSerialCPU()
+unsigned char* LifeCalculator::simulateLifeSerialCPU()
 {
     //bool newWorld[numOfVerticalCells+2][numOfHorizontalCells+2];
 
-    bool *newWorld = createNewWorld();
+    unsigned char* newWorld = createNewWorld();
 
-    for(int j = 1; j < numOfVerticalCells-1; j++)
+    /*for(int j = 1; j < numOfVerticalCells-1; j++)
         for(int i = 1; i < numOfHorizontalCells-1; i++)
         {
             int neighbours = numOfNeighbours(i, j);
 
             if(neighbours == 3)
-                newWorld[j*numOfHorizontalCells+i] = true;
+                newWorld[j*numOfHorizontalCells+i] = 1;
                 //newWorld[j][i] = true;
-            else if((neighbours == 2) && (world[j*numOfHorizontalCells+i] == true))
-                newWorld[j*numOfHorizontalCells+i] = true;
+            else if((neighbours == 2) && (world[j*numOfHorizontalCells+i] == 1))
+                newWorld[j*numOfHorizontalCells+i] = 1;
             else
-                newWorld[j*numOfHorizontalCells+i] = false;
+                newWorld[j*numOfHorizontalCells+i] = 0;
         }
     //deleteArray(world);
     //notify the GUI thread
 
 
-    world = newWorld;
+    world = newWorld;*/
     return newWorld;
 }
 int LifeCalculator::numOfNeighbours(int x, int y)
 {
     int neighbours = 0;
-    if(world[(y-1)*numOfHorizontalCells+x-1] == true)
+    /*neighbours += world[(y-1)*numOfHorizontalCells+x-1] + world[(y-1)*numOfHorizontalCells+x] + world[(y-1)*numOfHorizontalCells+x+1]
+                  + world[y*numOfHorizontalCells+x-1] + world[y*numOfHorizontalCells+x+1]
+                  + world[(y+1)*numOfHorizontalCells+x-1] + world[(y+1)*numOfHorizontalCells+x] + world[(y+1)*numOfHorizontalCells+x+1];*/
+    /*if(world[(y-1)*numOfHorizontalCells+x-1] == 1)
         neighbours++;
-    if(world[(y-1)*numOfHorizontalCells+x] == true)
+    if(world[(y-1)*numOfHorizontalCells+x] == 1)
         neighbours++;
-    if(world[(y-1)*numOfHorizontalCells+x+1] == true)
-        neighbours++;
-
-    if(world[y*numOfHorizontalCells+x-1] == true)
-        neighbours++;
-    if(world[y*numOfHorizontalCells+x+1] == true)
+    if(world[(y-1)*numOfHorizontalCells+x+1] == 1)
         neighbours++;
 
-    if(world[(y+1)*numOfHorizontalCells+x-1] == true)
+    if(world[y*numOfHorizontalCells+x-1] == 1)
         neighbours++;
-    if(world[(y+1)*numOfHorizontalCells+x] == true)
+    if(world[y*numOfHorizontalCells+x+1] == 1)
         neighbours++;
-    if(world[(y+1)*numOfHorizontalCells+x+1] == true)
+
+    if(world[(y+1)*numOfHorizontalCells+x-1] == 1)
         neighbours++;
+    if(world[(y+1)*numOfHorizontalCells+x] == 1)
+        neighbours++;
+    if(world[(y+1)*numOfHorizontalCells+x+1] == 1)
+        neighbours++;*/
 
     return neighbours;
 }
@@ -322,9 +324,9 @@ void LifeCalculator::pause(bool pause)
     paused = pause;
 }
 
-bool* LifeCalculator::createNewWorld()
+unsigned char* LifeCalculator::createNewWorld()
 {
-    bool *array = new bool[numOfVerticalCells*numOfHorizontalCells]();
+    unsigned char *array = new unsigned char[numOfRows*numOfHorizontalGroups]();
     return array;
 }
 
