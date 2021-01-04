@@ -352,7 +352,7 @@ void Canvas::wheelEvent(QWheelEvent *event)
     qInfo() << "Cell gain: " << horizontalCellGain << "," << verticalCellGain;
     qInfo() << "new offsets:" << offsetX << "," << offsetY;
     qInfo() << "New dimensions of the cell: " << cellWidth << "," << cellHeight;
-    qInfo() << "selected upper cells (starting from 1,1):" << selectedUpperLeftCellX << "," << selectedUpperLeftCellY;
+    qInfo() << "selected upper cells (starting from 0,0):" << selectedUpperLeftCellX << "," << selectedUpperLeftCellY;
     qInfo() << "number of cells: " << numOfScreenHorizontalCells << "," << numOfScreenVerticalCells;
     qInfo() << "===========================================================================";
 
@@ -467,7 +467,7 @@ void Canvas::paintEvent(QPaintEvent *)
     unsigned char currentGroup = world[selectedUpperGroupIndex];
     qInfo() << "====SELECTED UPPER GROUP INDEX=" << selectedUpperGroupIndex;
     //draw upper left cell
-    if(((shifter << (packedGroupSize-1)) & currentGroup) != 0)
+    if(((shifter << (selectedUpperCellBitPosition)) & currentGroup) != 0)
         paint.drawRect(QRect(0, 0, offsetX, offsetY));
     //draw the rest of the row, not including the upper right cell
 
@@ -477,7 +477,66 @@ void Canvas::paintEvent(QPaintEvent *)
     //zooming method won't allow zooming so much that less than packedGroupSize cells can be displayed
     //last column will be drawn just like every other.This might cause problems because rectangles are drawn outside the boundary.
 
-    int j = 1; //used because upper left cell has to be skipped
+
+    //try 2
+    int counter = 0, indexCounter=0;
+    int start = selectedUpperCellBitPosition-1, end = 0; //go from bit closest to MSB to LSB
+    //1st row
+    while(counter < (numOfScreenHorizontalCells-1))
+    {
+        for(int i = start; i >= end; i--)
+        {
+            if(((shifter << i) & (currentGroup)) != 0)
+                paint.drawRect(QRect(offsetX + cellWidth*counter, 0, cellWidth, offsetY)); //first row
+            counter++;
+        }
+        start = 7; //assuming 8 bit unsigned char is used
+        end = std::max(0, 8-(numOfScreenHorizontalCells-counter));
+        currentGroup = world[selectedUpperGroupIndex+(++indexCounter)];
+    }
+
+    //all other rows:
+    for(int row = 1; row < numOfScreenVerticalCells; row++) //first row is skipped as it was drawn above
+    {
+        indexCounter = (selectedUpperLeftCellY+1+row)*rowLength+1 + selectedUpperLeftCellX/packedGroupSize;
+        currentGroup = world[indexCounter];
+        counter = 0;
+
+        start = selectedUpperCellBitPosition-1;
+        end = 0; //go from bit closest to MSB to LSB
+
+        //first column has to be handled separately
+        if(((shifter << selectedUpperCellBitPosition) & currentGroup) != 0)
+            paint.drawRect(QRect(0, offsetY + cellHeight*(row-1), offsetX, cellHeight));
+
+        while(counter < (numOfScreenHorizontalCells-1))
+        {
+            for(int i = start; i >= end; i--)
+            {
+                if(((shifter << i) & (currentGroup)) != 0)
+                    paint.drawRect(QRect(offsetX + cellWidth*counter, offsetY + cellHeight*(row-1), cellWidth, cellHeight)); //first row
+                counter++;
+            }
+            start = 7; //assuming 8 bit unsigned char is used
+            end = std::max(0, 8-(numOfScreenHorizontalCells-counter));
+            currentGroup = world[++indexCounter];
+        }
+    }
+
+
+
+
+    //=========================================================================================
+    //FATAL ERROR: I'M NOT CONSIDERING selectedUpperCellBitPosition ANYWHERE!!!THIS IS WRONG!!!
+    //=========================================================================================
+
+    //the number of iterations per row will be equal to numOfScreenHorizontalCells
+    //first load the group that contains first element of the first row.
+
+
+
+    //below is incorrect implementation that doesn't consider selectedUpperCellBitPosition
+    /*int j = 1; //used because upper left cell has to be skipped
     for(int i = 0; i < numOfScreenHorizontalCells/8; i++) //iterate over groups within the first row.Rows are a multiple of 8.
     {
           unsigned char currentGroup = world[selectedUpperGroupIndex+i];
@@ -503,9 +562,6 @@ void Canvas::paintEvent(QPaintEvent *)
             if(((shifter << (packedGroupSize-1)) & currentGroup) != 0)
                 paint.drawRect(QRect(0, offsetY + cellHeight*(i-1), offsetX, cellHeight)); //first column
 
-            qInfo() << "offsetY=" << offsetY;
-            qInfo() << "cellHeight*(i-1)=" << cellHeight*(i-1);
-            qInfo() << "offsetY + cellHeight*(i-1)=" << offsetY + cellHeight*(i-1);
             for(int k = 0; k < numOfScreenHorizontalCells/8; k++) //iterate over the row
             {
                 currentGroup = world[selectedRow+1+k];
@@ -518,7 +574,7 @@ void Canvas::paintEvent(QPaintEvent *)
             }
 
 
-        }
+        }*/
 
 
 
