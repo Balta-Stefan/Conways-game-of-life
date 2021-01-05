@@ -1,4 +1,4 @@
-#include <LifeCalculator.h>
+﻿#include <LifeCalculator.h>
 #include <QDebug>
 #include <QTime>
 
@@ -23,16 +23,27 @@
     world = createNewWorld();
 }*/
 
+void LifeCalculator::littleToBigEndian(unsigned int* toConvert)
+{
+    *toConvert = ((*toConvert) >> 24) | (((*toConvert) << 8) & 0x00ff0000) | (((*toConvert) >> 8) & 0x0000ff00) | ((*toConvert) << 24); //it's very important that unsigned int is used.Othervise, shifting to the right might lead to new ones.
+}
+
+void LifeCalculator::bigToLittleEndian(unsigned int* toConvert)
+{
+    *toConvert = ((*toConvert) >> 24) | (((*toConvert) >> 8) & 0x0000ff00) | (((*toConvert) << 8) & 0x00ff0000) | ((*toConvert) << 24);
+}
+
+
 void LifeCalculator::startSimulation(unsigned char* world)
 {
     cl_int err;
     this->world = world; //this is not necessary as they are both equal because GUI took it right after calling LifeCalculator::init().
 
     // Write our data set into the arrays in device memory
-    err = clEnqueueWriteBuffer(queue, GPUCurrentGeneration, CL_TRUE, 0, sizeOfTheWorld, world, 0, NULL, NULL);
-    qInfo() << "--Error after first copy:" << TranslateOpenCLError(err);
-    err = clEnqueueWriteBuffer(queue, GPUNewGeneration, CL_TRUE, 0, sizeOfTheWorld, world, 0, NULL, NULL);
-    qInfo() << "--Error after second copy:" << TranslateOpenCLError(err);
+    //err = clEnqueueWriteBuffer(queue, GPUCurrentGeneration, CL_TRUE, 0, sizeOfTheWorld, world, 0, NULL, NULL);
+    //qInfo() << "--Error after first copy:" << TranslateOpenCLError(err);
+    //err = clEnqueueWriteBuffer(queue, GPUNewGeneration, CL_TRUE, 0, sizeOfTheWorld, world, 0, NULL, NULL);
+    //qInfo() << "--Error after second copy:" << TranslateOpenCLError(err);
     //clFinish(queue);  not necessary because the calls are blocking (flag CL_TRUE)
 
 
@@ -160,7 +171,7 @@ void LifeCalculator::init(int numOfHorizontalGroups, int numOfRows)
     world = createNewWorld();
 
     //perform GPU initialization
-    GPUInit();
+    //GPUInit();
 }
 
 void LifeCalculator::stop()
@@ -182,12 +193,13 @@ unsigned char* LifeCalculator::simulateLifeGPU()
     GPUNewGeneration = GPUCurrentGeneration;
     GPUCurrentGeneration = temp;
 
+    //simulateLife(__global unsigned char* currentGeneration, __global unsigned char* nextGeneration, int worldWidth, int worldHeight)
     //set kernel arguments
-    err = clSetKernelArg(kernel, 0, sizeof(cl_mem), &GPUCurrentGeneration);
+    err = clSetKernelArg(kernel, 0, sizeof(cl_mem), &GPUCurrentGeneration); //should it be sizeof(cl_mem) or sizeof(cl_mem*)?
     err |= clSetKernelArg(kernel, 1, sizeof(cl_mem), &GPUNewGeneration);
-    //err |= clSetKernelArg(kernel, 2, sizeof(int), &numOfHorizontalCells);
-    //err |= clSetKernelArg(kernel, 3, sizeof(int), &numOfVerticalCells);
-    //qInfo() << "Error after setting arguments: " << TranslateOpenCLError(err);
+    err |= clSetKernelArg(kernel, 2, sizeof(int), &numOfHorizontalGroups);
+    err |= clSetKernelArg(kernel, 3, sizeof(int), &numOfRows);
+    qInfo() << "Error after setting arguments: " << TranslateOpenCLError(err);
 
     // Execute the kernel over the entire range of the data set
     err = clEnqueueNDRangeKernel(queue, kernel, 1, NULL, &globalSize, &localSize, 0, NULL, NULL);
@@ -207,24 +219,25 @@ void LifeCalculator::run()
 {
     startMutex.lock(); //in order to wait on this mutex, this thread has to hold the mutex
 
-    //QTime time;
-    //int max = 50000;
+    QTime time;
+    int max = 5000;
 
-    while(runSimulation)
-    //while(currentGeneration < max)
+    //while(runSimulation)
+    while(currentGeneration < max)
     {
         while(paused)
         {
             waitCondition.wait(&startMutex);
-            //time.start();
+            time.start();
         }
-        //unsigned char* newWorld = simulateLifeSerialCPU();
-        unsigned char* newWorld = simulateLifeGPU();
-        //delete[] newWorld;
-        if(currentGeneration > jumpToGeneration)
+        unsigned char* newWorld = simulateLifeSerialCPU();
+        //unsigned char* newWorld = simulateLifeGPU();
+        delete[] newWorld;
+        currentGeneration++;
+        /*if(currentGeneration > jumpToGeneration)
         {
             emit sendNewWorld(newWorld);
-            msleep(25);
+            msleep(100);
             //emit sendNewWorld(ptr);
         }
         else if(currentGeneration == jumpToGeneration)
@@ -233,22 +246,102 @@ void LifeCalculator::run()
             emit sendNewWorld(newWorld);
         }
         currentGeneration++;
-        qInfo() << "Current generation: " << currentGeneration;
+        qInfo() << "Current generation: " << currentGeneration;*/
     }
-    //int elapsed = time.elapsed();
-    //qInfo() << "elapsed: " << elapsed << " generations/elapsed[g/ms]=" << (double)currentGeneration/elapsed;
+    int elapsed = time.elapsed();
+    qInfo() << "elapsed: " << elapsed << " generations/elapsed[g/ms]=" << (double)currentGeneration/elapsed;
 
     //GPGPU: elapsed=7286,  generations/elapsed[g/ms]= 6.86248, uchar: elapsed=5037,  generations/elapsed[g/ms]= 9.92654, packed: to do
-    //CPU serial: elapsed=26816,  generations/elapsed[g/ms]= 1.86456, uchar: elapsed=26797,  generations/elapsed[g/ms]= 1.86588, packed: to do
+    //CPU serial: elapsed=26816,  generations/elapsed[g/ms]= 1.86456, uchar: elapsed=26797,  generations/elapsed[g/ms]= 1.86588, packed: elapsed=2131,  generations/elapsed[g/ms]= 2.34632 (WTF???)
     startMutex.unlock();
-    deallocate();
+    //deallocate();
 }
 unsigned char* LifeCalculator::simulateLifeSerialCPU()
 {
     //bool newWorld[numOfVerticalCells+2][numOfHorizontalCells+2];
 
     unsigned char* newWorld = createNewWorld();
+    int iterationsPerRow = (numOfHorizontalGroups-2)/2;
 
+    unsigned int previousByte = 0;
+    //Because 4 bytes at a time are read, reading in the next iteration will lead to the loss of the 3rd byte from previous iteration.It has to be preserved.
+
+    //number of iterations per row is equal to half of the number of visible groups (subtracting by 2 above because invisible bytes aren't counted)
+    for(int ID = 0; ID < ((numOfRows-2)*iterationsPerRow); ID++) //numOfRows also contains ghost rows.These shouldn't be counted.
+    //for(int ID = 0; ID < 1; ID++)
+    {
+        int row = ID / iterationsPerRow + 1; //row coordinate is index of the ghost byte in a certain row
+        int column = (ID % iterationsPerRow)*2; //index of the beginning of our integer in the row
+
+        int upperRowIndex = (row-1)*numOfHorizontalGroups + column;
+        int currentRowIndex = row*numOfHorizontalGroups + column;
+        int lowerRowIndex = (row+1)*numOfHorizontalGroups + column;
+
+        unsigned char* bytePointer = world;
+
+        //unsigned ints are used because only zeros fill out the void when shifting
+        unsigned int upperRows = *((unsigned int*)(bytePointer + upperRowIndex));
+        unsigned int currentRows = *((unsigned int*)(bytePointer + currentRowIndex));
+        unsigned int lowerRows = *((unsigned int*)(bytePointer + lowerRowIndex));
+
+
+        //each of the variables below contains 32 cells.Only the middle 16 are of interest.
+        //First byte's LSB is the neighbour of the 2nd byte's MSB
+        //Last byte's MSB is the neighbour of the 3rd byte's LSB
+
+
+        littleToBigEndian(&upperRows);
+        littleToBigEndian(&currentRows);
+        littleToBigEndian(&lowerRows);
+
+
+        //all game of life is done below
+
+        unsigned int newCentralRow = 0;
+
+        //lower 7 bits aren't needed (neither are the upper 7 bits).
+        //upperRows >>= 7;
+        //currentRows >>= 7;
+        //lowerRows >>= 7;
+        for(int i = 0; i < 16; i++) //16 iterations because that's how many bits (cells) are evaluated in a 4 byte integer (only the middle 2 bytes are evaluated)
+        {
+            unsigned int neighbours = 0;
+
+            //might be better to store the results in different variables if it could harm pipelining (if it exists on GPUs)
+            neighbours += (upperRows >> (7+i)) & 0x01;
+            neighbours += (currentRows >> (7+i)) & 0x01;
+            neighbours += (lowerRows >> (7+i)) & 0x01;
+
+            neighbours += (upperRows >> (7+i+1)) & 0x01;
+            unsigned int alive = (currentRows >> (7+i+1)) & 0x01;
+            neighbours += (lowerRows >> (7+i+1)) & 0x01;
+
+            neighbours += (upperRows >> (7+i+2)) & 0x01;
+            neighbours += (currentRows >> (7+i+2)) & 0x01;
+            neighbours += (lowerRows >> (7+i+2)) & 0x01;
+
+
+            unsigned int temp;
+
+            if(neighbours == 3)
+                temp = 1; //alive
+            else if((neighbours == 2) && (alive == 1))
+                temp = 1; //alive
+            else
+                temp = 0; //dead
+
+            newCentralRow |= temp << (8+i);
+        }
+
+        //central row now has to become newCentralRow.What about endianess?It probably has to be converted to a different endianness....
+
+        //previousByte = (newCentralRow & 0x0000ff00) >> 8;
+        newCentralRow |= previousByte;
+        previousByte = (newCentralRow & 0x0000ff00) << 16;
+        bigToLittleEndian(&newCentralRow);
+        bytePointer = newWorld; //now write results to the next generation
+        *((unsigned int*)(bytePointer + currentRowIndex)) = newCentralRow;
+    }
     /*for(int j = 1; j < numOfVerticalCells-1; j++)
         for(int i = 1; i < numOfHorizontalCells-1; i++)
         {
@@ -267,6 +360,7 @@ unsigned char* LifeCalculator::simulateLifeSerialCPU()
 
 
     world = newWorld;*/
+    world = newWorld;
     return newWorld;
 }
 int LifeCalculator::numOfNeighbours(int x, int y)
@@ -326,7 +420,7 @@ void LifeCalculator::pause(bool pause)
 
 unsigned char* LifeCalculator::createNewWorld()
 {
-    unsigned char *array = new unsigned char[numOfRows*numOfHorizontalGroups]();
+    unsigned char *array = new unsigned char[sizeOfTheWorld]();
     return array;
 }
 
