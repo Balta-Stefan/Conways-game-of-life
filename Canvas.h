@@ -72,11 +72,11 @@ private:
 //(packedGroupSize-1) - ((selectedUpperLeftCellY+1)*rowLength)
 
     static const int CanvasWidth = 1280, CanvasHeight = 720;
-    static const int numOfHorizontalCells = 40, numOfVerticalCells = 40; //dimension of the world
+    static const int numOfHorizontalCells = 160, numOfVerticalCells = 180; //dimension of the world
     static const int numOfRealHorizontalCells = numOfHorizontalCells+16, numOfRealVerticalCells = numOfVerticalCells+2; //there are 2 invisible columns and 2 invisible rows
     static const int zoomValue = 4;
     static const int packedGroupSize = sizeof(unsigned char)*8; //sizeof gives size in bytes, not bits...
-    static const int rowLength = numOfRealHorizontalCells/packedGroupSize; //1 unsigned char should hold 8 cells.Ceil is not used because it is assumed that row is a multiple of 8.
+    static const int rowLength = numOfRealHorizontalCells/packedGroupSize; //1 unsigned char should hold 8 cells.Ceil is not used because it is assumed that row is a multiple of 16.
 
     int cellWidth = CanvasWidth / numOfHorizontalCells, cellHeight = CanvasHeight / numOfVerticalCells;
     int offsetX, offsetY; //represent offsets because of the zoom implementation (the part of the cell that was zoomed at will still be under the mouse cursor after zooming).When all cells have the same dimension, offsets will be equal to cell dimension

@@ -74,10 +74,15 @@ private:
     cl_command_queue queue;           // command queue
     cl_program program;               // program
     cl_kernel kernel;                 // kernel
-    size_t globalSize, localSize, sizeOfTheWorld;//, sizeOfTheRealWorld;
+    size_t globalSize, localSize;//, sizeOfTheRealWorld;
+    int sizeOfTheWorld;
 
     static const int maxNumberOfPrecomputedGenerations=50;
     const char* TranslateOpenCLError(cl_int errorCode);
+
+
+    void littleToBigEndian(unsigned int* toConvert);
+    void bigToLittleEndian(unsigned int* toConvert);
 
 signals:
     void sendNewWorld(unsigned char* newGeneration);

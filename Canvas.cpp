@@ -8,8 +8,6 @@ Canvas::Canvas(QWidget *parent) : QWidget(parent)
     //connect(otherThreadAddress, otherThreadSignalAddress, receiverAddress, receiverSlotAddress)
     connect(&calculator, &LifeCalculator::sendNewWorld, this, &Canvas::sendNewGeneration); //which connection type should be used (slot and signal are in different threads)?
 
-
-
     offsetX = cellWidth;
     offsetY = cellHeight;
     calculator.init(rowLength, numOfRealVerticalCells);
@@ -30,6 +28,7 @@ void Canvas::sendNewGeneration(unsigned char* newWorld)
     delete[] world;
     world = newWorld;
 
+    //printState();
     update();
 }
 
@@ -141,7 +140,7 @@ void Canvas::mousePressEvent(QMouseEvent *event)
     world[row + column] = 1;*/
     //world[selectedUpperLeftCellY+clickedCellY][selectedUpperLeftCellX+clickedCellX] = true;
 
-    printState();
+    //printState();
     update();
 }
 
@@ -166,7 +165,7 @@ void Canvas::mouseMoveEvent(QMouseEvent *event)
     world[row + column] = 1; //MIGHT BE INCORRECT*/
 
     //world[selectedUpperLeftCellY+newCellY][selectedUpperLeftCellX+newCellX] = true;
-    printState();
+    //printState();
     update();
 
 }
@@ -430,6 +429,7 @@ for(int j = 0; j < numOfScreenVerticalCells-1; j++) //Iterate over rows;
 
 void Canvas::paintEvent(QPaintEvent *)
 {
+    qInfo() << "AM PAINTING NOW!";
     QPainter paint(this);
     QPen pen;
     QBrush brush;
@@ -524,7 +524,7 @@ void Canvas::paintEvent(QPaintEvent *)
     }
 
 
-
+    qInfo() << "AM DONE PAINTING!";
 
     //=========================================================================================
     //FATAL ERROR: I'M NOT CONSIDERING selectedUpperCellBitPosition ANYWHERE!!!THIS IS WRONG!!!
