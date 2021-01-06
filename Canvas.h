@@ -72,7 +72,7 @@ private:
 //(packedGroupSize-1) - ((selectedUpperLeftCellY+1)*rowLength)
 
     static const int CanvasWidth = 1280, CanvasHeight = 720;
-    static const int numOfHorizontalCells = 160, numOfVerticalCells = 180; //dimension of the world
+    static const int numOfHorizontalCells = 160, numOfVerticalCells = 240; //dimension of the world
     static const int numOfRealHorizontalCells = numOfHorizontalCells+16, numOfRealVerticalCells = numOfVerticalCells+2; //there are 2 invisible columns and 2 invisible rows
     static const int zoomValue = 4;
     static const int packedGroupSize = sizeof(unsigned char)*8; //sizeof gives size in bytes, not bits...

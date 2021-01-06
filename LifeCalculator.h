@@ -83,6 +83,8 @@ private:
 
     void littleToBigEndian(unsigned int* toConvert);
     void bigToLittleEndian(unsigned int* toConvert);
+    unsigned char* experimentalSerialCPU();
+    int maxID;
 
 signals:
     void sendNewWorld(unsigned char* newGeneration);

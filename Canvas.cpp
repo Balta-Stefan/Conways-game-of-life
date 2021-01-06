@@ -429,7 +429,7 @@ for(int j = 0; j < numOfScreenVerticalCells-1; j++) //Iterate over rows;
 
 void Canvas::paintEvent(QPaintEvent *)
 {
-    qInfo() << "AM PAINTING NOW!";
+    //qInfo() << "AM PAINTING NOW!";
     QPainter paint(this);
     QPen pen;
     QBrush brush;
@@ -465,7 +465,7 @@ void Canvas::paintEvent(QPaintEvent *)
     //when right shifting unsigned numbers, zeros should be filled in
     unsigned char shifter = 1;
     unsigned char currentGroup = world[selectedUpperGroupIndex];
-    qInfo() << "====SELECTED UPPER GROUP INDEX=" << selectedUpperGroupIndex;
+    //qInfo() << "====SELECTED UPPER GROUP INDEX=" << selectedUpperGroupIndex;
     //draw upper left cell
     if(((shifter << (selectedUpperCellBitPosition)) & currentGroup) != 0)
         paint.drawRect(QRect(0, 0, offsetX, offsetY));
@@ -524,7 +524,7 @@ void Canvas::paintEvent(QPaintEvent *)
     }
 
 
-    qInfo() << "AM DONE PAINTING!";
+    //qInfo() << "AM DONE PAINTING!";
 
     //=========================================================================================
     //FATAL ERROR: I'M NOT CONSIDERING selectedUpperCellBitPosition ANYWHERE!!!THIS IS WRONG!!!
