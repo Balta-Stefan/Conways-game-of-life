@@ -10,9 +10,9 @@ Canvas::Canvas(QWidget *parent) : QWidget(parent)
 
     offsetX = cellWidth;
     offsetY = cellHeight;
-    calculator.init(rowLength, numOfRealVerticalCells);
+    world = calculator.init(rowLength, numOfRealVerticalCells);
 
-    world = calculator.world;
+
 
     calculator.start();
     //QtConcurrent::run(this, &Canvas::play);

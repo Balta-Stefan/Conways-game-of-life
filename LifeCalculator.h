@@ -6,6 +6,7 @@
 #include <QThread>
 #include <QMutex>
 #include <QWaitCondition>
+#include <cstring>
 
 //would it make sense to keep all 8 neighbours of a cell inside a byte?That would allow the usage of a lookup table.The table would have 2^8=256 entries.
     //even better, instead of making a lookup table for neighbours of ONE cell, make a lookup table for a block of arbitrary size.
@@ -36,8 +37,7 @@ public:
     void funkcija();
     unsigned char* simulateLifeSerialCPU();
     unsigned char* simulateLifeGPU();
-    unsigned char* world;
-    void init(int numOfHorizontalGroups, int numOfRows);
+    unsigned char* init(int numOfHorizontalGroups, int numOfRows);
     void pause(bool pause);
     unsigned char* getGeneration();
     void startSimulation(unsigned char* world);
@@ -48,9 +48,9 @@ protected:
     void run() override;
 
 private:
-    unsigned char* createNewWorld();
     bool paused = true, runSimulation = true; //used to run the calculations
-    int numOfNeighbours(int x, int y);
+    unsigned char* temporaryNewGeneration = createNewWorld();
+    unsigned char* world = createNewWorld();
 
     int numOfHorizontalGroups, numOfRows;
     long long jumpToGeneration=0; //check whether current generation is lower than jumpToGeneration.First generation will be 1.
@@ -85,6 +85,8 @@ private:
     void bigToLittleEndian(unsigned int* toConvert);
     unsigned char* experimentalSerialCPU();
     int maxID;
+
+    unsigned char* createNewWorld();
 
 signals:
     void sendNewWorld(unsigned char* newGeneration);

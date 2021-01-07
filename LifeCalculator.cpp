@@ -37,7 +37,8 @@ void LifeCalculator::bigToLittleEndian(unsigned int* toConvert)
 void LifeCalculator::startSimulation(unsigned char* world)
 {
     cl_int err;
-    this->world = world; //this is not necessary as they are both equal because GUI took it right after calling LifeCalculator::init().
+    std::memcpy(this->world, world, sizeOfTheWorld);
+    //this->world = world; //this is not necessary as they are both equal because GUI took it right after calling LifeCalculator::init().
 
 
     // Write our data set into the arrays in device memory
@@ -142,6 +143,10 @@ void LifeCalculator::GPUInit()
     GPUCurrentGeneration = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeOfTheWorld, NULL, NULL);
     GPUNewGeneration = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeOfTheWorld, NULL, NULL);
 
+    //set 2nd and 3rd argument.It's possible that this is wrong and that they have to be set for each iteration.
+    err |= clSetKernelArg(kernel, 2, sizeof(int), &numOfHorizontalGroups);
+    err |= clSetKernelArg(kernel, 3, sizeof(int), &maxID);
+
     // Write our data set into the arrays in device memory
     //err = clEnqueueWriteBuffer(queue, GPUCurrentGeneration, CL_TRUE, 0, bytes, hostWorld, 0, NULL, NULL);
     //err |= clEnqueueWriteBuffer(queue, GPUNewGeneration, CL_TRUE, 0, bytes, hostWorld, 0, NULL, NULL);
@@ -169,16 +174,16 @@ void LifeCalculator::GPUInit()
 
 }
 
-void LifeCalculator::init(int numOfHorizontalGroups, int numOfRows)
+unsigned char* LifeCalculator::init(int numOfHorizontalGroups, int numOfRows)
 {
     this->numOfHorizontalGroups = numOfHorizontalGroups;
     this->numOfRows = numOfRows;
     //sizeOfTheRealWorld = (numOfHorizontalCells-2)*(numOfVerticalCells-2);
     sizeOfTheWorld = numOfHorizontalGroups*numOfRows;
-    world = createNewWorld();
 
     //perform GPU initialization
     GPUInit();
+    return createNewWorld();
 }
 
 void LifeCalculator::stop()
@@ -196,31 +201,47 @@ unsigned char* LifeCalculator::simulateLifeGPU()
     unsigned char* newGeneration = new unsigned char[sizeOfTheWorld];
     cl_int err;
     //swap current generation with next generation
-    cl_mem temp = GPUNewGeneration;
-    GPUNewGeneration = GPUCurrentGeneration;
-    GPUCurrentGeneration = temp;
+
+    long long repeatCalculations = 1;
+
+    if (currentGeneration < jumpToGeneration)
+    {
+        repeatCalculations = jumpToGeneration - currentGeneration;
+        currentGeneration = jumpToGeneration;
+    }
+    else
+        currentGeneration++;
+
+    for (int i = 0; i < repeatCalculations; i++)
+    {
+        cl_mem temp = GPUNewGeneration;
+        GPUNewGeneration = GPUCurrentGeneration;
+        GPUCurrentGeneration = temp;
 
 
-    //qInfo() << "MAX ID=" << maxID;
-    size_t maxSize;
-    //qInfo() << "CL_DEVICE_MAX_WORK_GROUP_SIZE INVOCATION ERROR:" << TranslateOpenCLError(clGetDeviceInfo(device_id, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(size_t), &maxSize, NULL));
-    //qInfo() << "MAX WORKGROUP SIZE=" << maxSize;
-    //simulateLife(__global unsigned char* currentGeneration, __global unsigned char* nextGeneration, int worldWidth, int worldHeight)
-    //set kernel arguments
-    err = clSetKernelArg(kernel, 0, sizeof(cl_mem), &GPUCurrentGeneration); //should it be sizeof(cl_mem) or sizeof(cl_mem*)?
-    err |= clSetKernelArg(kernel, 1, sizeof(cl_mem), &GPUNewGeneration);
-    err |= clSetKernelArg(kernel, 2, sizeof(int), &numOfHorizontalGroups);
-    err |= clSetKernelArg(kernel, 3, sizeof(int), &maxID);
-    //qInfo() << "Error after setting arguments: " << TranslateOpenCLError(err);
+        //qInfo() << "MAX ID=" << maxID;
+        //qInfo() << "CL_DEVICE_MAX_WORK_GROUP_SIZE INVOCATION ERROR:" << TranslateOpenCLError(clGetDeviceInfo(device_id, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(size_t), &maxSize, NULL));
+        //qInfo() << "MAX WORKGROUP SIZE=" << maxSize;
+        //simulateLife(__global unsigned char* currentGeneration, __global unsigned char* nextGeneration, int worldWidth, int worldHeight)
+        //set kernel arguments
+        err = clSetKernelArg(kernel, 0, sizeof(cl_mem), &GPUCurrentGeneration); //should it be sizeof(cl_mem) or sizeof(cl_mem*)?
+        err |= clSetKernelArg(kernel, 1, sizeof(cl_mem), &GPUNewGeneration);
+        //It's possible that 3rd and 4th argument have to be set in every generation.
 
-    // Execute the kernel over the entire range of the data set
-    err = clEnqueueNDRangeKernel(queue, kernel, 1, NULL, &globalSize, &localSize, 0, NULL, NULL);
-    //qInfo() << "AFTER RUNNING KERNEL: GLOBAL SIZE=" << globalSize << ", local size=" << localSize;
-    //qInfo() << "=====================Error after executing the kernel: " << TranslateOpenCLError(err);
+        //err |= clSetKernelArg(kernel, 2, sizeof(int), &numOfHorizontalGroups);
+        //err |= clSetKernelArg(kernel, 3, sizeof(int), &maxID);
 
-    // Wait for the command queue to get serviced before reading back results
-    clFinish(queue);
 
+        //qInfo() << "Error after setting arguments: " << TranslateOpenCLError(err);
+
+        // Execute the kernel over the entire range of the data set
+        err = clEnqueueNDRangeKernel(queue, kernel, 1, NULL, &globalSize, &localSize, 0, NULL, NULL);
+        //qInfo() << "AFTER RUNNING KERNEL: GLOBAL SIZE=" << globalSize << ", local size=" << localSize;
+        //qInfo() << "=====================Error after executing the kernel: " << TranslateOpenCLError(err);
+
+        // Wait for the command queue to get serviced before reading back results
+        clFinish(queue);
+    }
     // Read the results from the device
     clEnqueueReadBuffer(queue, GPUNewGeneration, CL_TRUE, 0, sizeOfTheWorld, newGeneration, 0, NULL, NULL);
 
@@ -228,98 +249,115 @@ unsigned char* LifeCalculator::simulateLifeGPU()
     return newGeneration;
 }
 
+unsigned char* LifeCalculator::createNewWorld()
+{
+    unsigned char* array = new unsigned char[sizeOfTheWorld]();
+    return array;
+}
+
 //not working as intended...Something breaks at every 8th cell (or possibly 7th or 9th)
 unsigned char* LifeCalculator::experimentalSerialCPU()
 {
-
-    unsigned char* newGeneration = createNewWorld();
-
     int iterationsPerRow = (numOfHorizontalGroups-2);
     int numOfIterations = (numOfRows-2)*iterationsPerRow;
 
+    long long repeatCalculations = 1;
 
-    for(int ID = 0; ID < numOfIterations; ID++)
+    if (currentGeneration < jumpToGeneration)
     {
-        int row = ID / iterationsPerRow + 1; //row coordinate is index of the ghost byte in a certain row
-        int column = ID % iterationsPerRow; //index of the beginning of our integer in the row
-
-        //COLUMN MUST START FROM THE LEFT BYTE (whose LSB is left neighbour of the important central byte's MSB)!!!!
-
-        int upperRowIndex = (row-1)*numOfHorizontalGroups;// + column;
-        int currentRowIndex = row*numOfHorizontalGroups;// + column;
-        int lowerRowIndex = (row+1)*numOfHorizontalGroups;// + column;
-
-        //unsigned char* bytePointer = world;
-
-        unsigned char upperRowLeftByte = world[upperRowIndex + column];
-        unsigned char upperRowMiddleByte = world[upperRowIndex + column+1];
-        unsigned char upperRowRightByte = world[upperRowIndex + column+2];
-
-        unsigned char middleRowLeftByte = world[currentRowIndex + column];
-        unsigned char middleRowMiddleByte = world[currentRowIndex + column+1];
-        unsigned char middleRowRightByte = world[currentRowIndex + column+2];
-
-        unsigned char lowerRowLeftByte = world[lowerRowIndex + column];
-        unsigned char lowerRowMiddleByte = world[lowerRowIndex + column+1];
-        unsigned char lowerRowRightByte = world[lowerRowIndex + column+2];
-
-
-        unsigned int upperThreeRows = 0, middleThreeRows = 0, lowerThreeRows = 0;
-        unsigned int temp1 = ((unsigned int)middleRowLeftByte) << 9;
-        unsigned int temp2 = ((unsigned int)middleRowMiddleByte) << 1;
-        unsigned int temp3 = ((unsigned int)middleRowRightByte) >> 7;
-
-        upperThreeRows |= (((unsigned int)upperRowLeftByte) << 9) | (((unsigned int)upperRowMiddleByte) << 1) | (((unsigned int)upperRowRightByte) >> 7);
-        middleThreeRows |= (((unsigned int)middleRowLeftByte) << 9) | (((unsigned int)middleRowMiddleByte) << 1) | (((unsigned int)middleRowRightByte) >> 7);
-        lowerThreeRows |= (((unsigned int)lowerRowLeftByte) << 9) | (((unsigned int)lowerRowMiddleByte) << 1) | (((unsigned int)lowerRowRightByte) >> 7);
-
-
-        unsigned char newCentralRow = 0;
-
-
-        //evaluate inner 8 cells
-        for(int i = 0; i < 8; i++) //8 iterations because that's how many bits (cells) are evaluated in a 4 byte integer (only the middle 2 bytes are evaluated)
-        {
-            unsigned int neighbours = 0;
-
-            //might be better to store the results in different variables if it could harm pipelining (if it exists on GPUs)
-            //evaluate column on the right
-            neighbours += (upperThreeRows >> i) & 0x01;
-            neighbours += (middleThreeRows >> i) & 0x01;
-            neighbours += (lowerThreeRows >> i) & 0x01;
-
-            //evaluate column that contains the cell that is being evaluated
-            neighbours += (upperThreeRows >> (i+1)) & 0x01;
-            unsigned int alive = (middleThreeRows >> (i+1)) & 0x01;
-            neighbours += (lowerThreeRows >> (i+1)) & 0x01;
-
-            //evaluate the left column
-            neighbours += (upperThreeRows >> (i+2)) & 0x01;
-            neighbours += (middleThreeRows >> (i+2)) & 0x01;
-            neighbours += (lowerThreeRows >> (i+2)) & 0x01;
-
-            //if(alive == 1)
-                //qInfo() << "IS ALIVE";
-
-            unsigned char newCellState;
-
-            if(neighbours == 3)
-                newCellState = 1; //alive
-            else if((neighbours == 2) && (alive == 1))
-                newCellState = 1; //alive
-            else
-                newCellState = 0; //dead
-
-            newCentralRow |= newCellState << i;
-        }
-
-
-        //bytePointer = newGeneration; //now write results to the next generation
-        newGeneration[currentRowIndex+column+1] = newCentralRow;
-
+        repeatCalculations = jumpToGeneration - currentGeneration;
+        currentGeneration = jumpToGeneration;
     }
-    world = newGeneration;
-    return newGeneration;
+    else
+        currentGeneration++;
+
+    for (int i = 0; i < repeatCalculations; i++)
+    {
+        for(int ID = 0; ID < numOfIterations; ID++)
+        {
+            int row = ID / iterationsPerRow + 1; //row coordinate is index of the ghost byte in a certain row
+            int column = ID % iterationsPerRow; //index of the beginning of our integer in the row
+
+            //COLUMN MUST START FROM THE LEFT BYTE (whose LSB is left neighbour of the important central byte's MSB)!!!!
+
+            int upperRowIndex = (row-1)*numOfHorizontalGroups;// + column;
+            int currentRowIndex = row*numOfHorizontalGroups;// + column;
+            int lowerRowIndex = (row+1)*numOfHorizontalGroups;// + column;
+
+            //unsigned char* bytePointer = world;
+
+            unsigned char upperRowLeftByte = world[upperRowIndex + column];
+            unsigned char upperRowMiddleByte = world[upperRowIndex + column+1];
+            unsigned char upperRowRightByte = world[upperRowIndex + column+2];
+
+            unsigned char middleRowLeftByte = world[currentRowIndex + column];
+            unsigned char middleRowMiddleByte = world[currentRowIndex + column+1];
+            unsigned char middleRowRightByte = world[currentRowIndex + column+2];
+
+            unsigned char lowerRowLeftByte = world[lowerRowIndex + column];
+            unsigned char lowerRowMiddleByte = world[lowerRowIndex + column+1];
+            unsigned char lowerRowRightByte = world[lowerRowIndex + column+2];
+
+
+            unsigned int upperThreeRows = 0, middleThreeRows = 0, lowerThreeRows = 0;
+
+            upperThreeRows |= (((unsigned int)upperRowLeftByte) << 9) | (((unsigned int)upperRowMiddleByte) << 1) | (((unsigned int)upperRowRightByte) >> 7);
+            middleThreeRows |= (((unsigned int)middleRowLeftByte) << 9) | (((unsigned int)middleRowMiddleByte) << 1) | (((unsigned int)middleRowRightByte) >> 7);
+            lowerThreeRows |= (((unsigned int)lowerRowLeftByte) << 9) | (((unsigned int)lowerRowMiddleByte) << 1) | (((unsigned int)lowerRowRightByte) >> 7);
+
+
+            unsigned char newCentralRow = 0;
+
+
+            //evaluate inner 8 cells
+            for(int i = 0; i < 8; i++) //8 iterations because that's how many bits (cells) are evaluated in a 4 byte integer (only the middle 2 bytes are evaluated)
+            {
+                unsigned int neighbours = 0;
+
+                //might be better to store the results in different variables if it could harm pipelining (if it exists on GPUs)
+                //evaluate column on the right
+                neighbours += (upperThreeRows >> i) & 0x01;
+                neighbours += (middleThreeRows >> i) & 0x01;
+                neighbours += (lowerThreeRows >> i) & 0x01;
+
+                //evaluate column that contains the cell that is being evaluated
+                neighbours += (upperThreeRows >> (i+1)) & 0x01;
+                unsigned int alive = (middleThreeRows >> (i+1)) & 0x01;
+                neighbours += (lowerThreeRows >> (i+1)) & 0x01;
+
+                //evaluate the left column
+                neighbours += (upperThreeRows >> (i+2)) & 0x01;
+                neighbours += (middleThreeRows >> (i+2)) & 0x01;
+                neighbours += (lowerThreeRows >> (i+2)) & 0x01;
+
+                //if(alive == 1)
+                    //qInfo() << "IS ALIVE";
+
+                unsigned char newCellState;
+
+                if(neighbours == 3)
+                    newCellState = 1; //alive
+                else if((neighbours == 2) && (alive == 1))
+                    newCellState = 1; //alive
+                else
+                    newCellState = 0; //dead
+
+                newCentralRow |= newCellState << i;
+            }
+
+
+            //bytePointer = newGeneration; //now write results to the next generation
+            temporaryNewGeneration[currentRowIndex+column+1] = newCentralRow;
+
+        }
+        unsigned char* temp = world;
+        world = temporaryNewGeneration;
+        temporaryNewGeneration = temp;
+    }
+    unsigned char* worldForGUI = createNewWorld();
+    std::memcpy(worldForGUI, world, sizeOfTheWorld);
+
+    return worldForGUI;
 }
 
 void LifeCalculator::run()
@@ -340,7 +378,7 @@ void LifeCalculator::run()
         unsigned char* newWorld = simulateLifeGPU();
         //unsigned char* newWorld = experimentalSerialCPU();
         //delete[] newWorld;
-        if(currentGeneration > jumpToGeneration)
+        /*if(currentGeneration > jumpToGeneration)
         {
             emit sendNewWorld(newWorld);
             msleep(45);
@@ -352,7 +390,9 @@ void LifeCalculator::run()
             emit sendNewWorld(newWorld);
         }
         currentGeneration++;
-        qInfo() << "Current generation: " << currentGeneration;
+        qInfo() << "Current generation: " << currentGeneration;*/
+        emit sendNewWorld(newWorld);
+        msleep(45);
         //break;
     }
     //int elapsed = time.elapsed();
@@ -362,6 +402,8 @@ void LifeCalculator::run()
     //CPU serial: elapsed=26816,  generations/elapsed[g/ms]= 1.86456, uchar: elapsed=26797,  generations/elapsed[g/ms]= 1.86588, packed: elapsed=2131,  generations/elapsed[g/ms]= 2.34632 (WTF???)
     startMutex.unlock();
     deallocate();
+    delete[] world;
+    delete[] temporaryNewGeneration;
 }
 
 /*Eliminisati prvi i zadnji bajt.
@@ -370,142 +412,110 @@ void LifeCalculator::run()
  *Podatak upisati nazad na adresi visoj za 1 bajt u odnosu na ranije.
  *
  * */
+
 unsigned char* LifeCalculator::simulateLifeSerialCPU()
 {
     //bool newWorld[numOfVerticalCells+2][numOfHorizontalCells+2];
 
-    unsigned char* newWorld = createNewWorld();
-    int iterationsPerRow = (numOfHorizontalGroups-2)/2;
+    int iterationsPerRow = (numOfHorizontalGroups - 2) / 2;
 
+    long long repeatCalculations = 1;
 
-
-    //Because 4 bytes at a time are read, reading in the next iteration will lead to the loss of the 3rd byte from previous iteration.It has to be preserved.
-
-    //number of iterations per row is equal to half of the number of visible groups (subtracting by 2 above because invisible bytes aren't counted)
-    for(int ID = 0; ID < ((numOfRows-2)*iterationsPerRow); ID++) //numOfRows also contains ghost rows.These shouldn't be counted.
-    //for(int ID = 0; ID < 1; ID++)
+    if (currentGeneration < jumpToGeneration)
     {
-        int row = ID / iterationsPerRow + 1; //row coordinate is index of the ghost byte in a certain row
-        int column = (ID % iterationsPerRow)*2; //index of the beginning of our integer in the row
-
-        int upperRowIndex = (row-1)*numOfHorizontalGroups + column;
-        int currentRowIndex = row*numOfHorizontalGroups + column;
-        int lowerRowIndex = (row+1)*numOfHorizontalGroups + column;
-
-        unsigned char* bytePointer = world;
-
-        //unsigned ints are used because only zeros fill out the void when shifting
-        unsigned int upperRows = *((unsigned int*)(bytePointer + upperRowIndex));
-        unsigned int currentRows = *((unsigned int*)(bytePointer + currentRowIndex));
-        unsigned int lowerRows = *((unsigned int*)(bytePointer + lowerRowIndex));
-
-
-        //each of the variables below contains 32 cells.Only the middle 16 are of interest.
-        //First byte's LSB is the neighbour of the 2nd byte's MSB
-        //Last byte's MSB is the neighbour of the 3rd byte's LSB
-
-
-        littleToBigEndian(&upperRows);
-        littleToBigEndian(&currentRows);
-        littleToBigEndian(&lowerRows);
-
-
-        //all game of life is done below
-
-        unsigned int newCentralRow = 0;
-
-        //lower 7 bits aren't needed (neither are the upper 7 bits).
-        //upperRows >>= 7;
-        //currentRows >>= 7;
-        //lowerRows >>= 7;
-        for(int i = 0; i < 16; i++) //16 iterations because that's how many bits (cells) are evaluated in a 4 byte integer (only the middle 2 bytes are evaluated)
-        {
-            unsigned int neighbours = 0;
-
-            //might be better to store the results in different variables if it could harm pipelining (if it exists on GPUs)
-            neighbours += (upperRows >> (7+i)) & 0x01;
-            neighbours += (currentRows >> (7+i)) & 0x01;
-            neighbours += (lowerRows >> (7+i)) & 0x01;
-
-            neighbours += (upperRows >> (7+i+1)) & 0x01;
-            unsigned int alive = (currentRows >> (7+i+1)) & 0x01;
-            neighbours += (lowerRows >> (7+i+1)) & 0x01;
-
-            neighbours += (upperRows >> (7+i+2)) & 0x01;
-            neighbours += (currentRows >> (7+i+2)) & 0x01;
-            neighbours += (lowerRows >> (7+i+2)) & 0x01;
-
-
-            unsigned int temp;
-
-            if(neighbours == 3)
-                temp = 1; //alive
-            else if((neighbours == 2) && (alive == 1))
-                temp = 1; //alive
-            else
-                temp = 0; //dead
-
-            newCentralRow |= temp << (8+i);
-        }
-
-        //central row now has to become newCentralRow.What about endianess?It probably has to be converted to a different endianness....
-
-        unsigned short newRow = (unsigned short)((newCentralRow & 0x00ffff00) >> 8);
-        //swap endianness of newRow
-        newRow = ((newRow & 0x00ff) << 8) | ((newRow & 0xff00) >> 8);
-
-        //bigToLittleEndian(&newCentralRow);
-        bytePointer = newWorld; //now write results to the next generation
-        *((unsigned short*)(bytePointer + currentRowIndex+1)) = newRow;
+        repeatCalculations = jumpToGeneration - currentGeneration;
+        currentGeneration = jumpToGeneration;
     }
-    /*for(int j = 1; j < numOfVerticalCells-1; j++)
-        for(int i = 1; i < numOfHorizontalCells-1; i++)
+    else
+        currentGeneration++;
+
+    for (int i = 0; i < repeatCalculations; i++)
+    {
+        //Because 4 bytes at a time are read, reading in the next iteration will lead to the loss of the 3rd byte from previous iteration.It has to be preserved.
+
+        //number of iterations per row is equal to half of the number of visible groups (subtracting by 2 above because invisible bytes aren't counted)
+        for (int ID = 0; ID < ((numOfRows - 2) * iterationsPerRow); ID++) //numOfRows also contains ghost rows.These shouldn't be counted.
+        //for(int ID = 0; ID < 1; ID++)
         {
-            int neighbours = numOfNeighbours(i, j);
+            int row = ID / iterationsPerRow + 1; //row coordinate is index of the ghost byte in a certain row
+            int column = (ID % iterationsPerRow) * 2; //index of the beginning of our integer in the row
 
-            if(neighbours == 3)
-                newWorld[j*numOfHorizontalCells+i] = 1;
-                //newWorld[j][i] = true;
-            else if((neighbours == 2) && (world[j*numOfHorizontalCells+i] == 1))
-                newWorld[j*numOfHorizontalCells+i] = 1;
-            else
-                newWorld[j*numOfHorizontalCells+i] = 0;
+            int upperRowIndex = (row - 1) * numOfHorizontalGroups + column;
+            int currentRowIndex = row * numOfHorizontalGroups + column;
+            int lowerRowIndex = (row + 1) * numOfHorizontalGroups + column;
+
+            unsigned char* bytePointer = world;
+
+            //unsigned ints are used because only zeros fill out the void when shifting
+            unsigned int upperRows = *((unsigned int*)(bytePointer + upperRowIndex));
+            unsigned int currentRows = *((unsigned int*)(bytePointer + currentRowIndex));
+            unsigned int lowerRows = *((unsigned int*)(bytePointer + lowerRowIndex));
+
+
+            //each of the variables below contains 32 cells.Only the middle 16 are of interest.
+            //First byte's LSB is the neighbour of the 2nd byte's MSB
+            //Last byte's MSB is the neighbour of the 3rd byte's LSB
+
+
+            littleToBigEndian(&upperRows);
+            littleToBigEndian(&currentRows);
+            littleToBigEndian(&lowerRows);
+
+
+            //all game of life is done below
+
+            unsigned int newCentralRow = 0;
+
+            //lower 7 bits aren't needed (neither are the upper 7 bits).
+            for (int i = 0; i < 16; i++) //16 iterations because that's how many bits (cells) are evaluated in a 4 byte integer (only the middle 2 bytes are evaluated)
+            {
+                unsigned int neighbours = 0;
+
+                //might be better to store the results in different variables if it could harm pipelining (if it exists on GPUs)
+                neighbours += (upperRows >> (7 + i)) & 0x01;
+                neighbours += (currentRows >> (7 + i)) & 0x01;
+                neighbours += (lowerRows >> (7 + i)) & 0x01;
+
+                neighbours += (upperRows >> (7 + i + 1)) & 0x01;
+                unsigned int alive = (currentRows >> (7 + i + 1)) & 0x01;
+                neighbours += (lowerRows >> (7 + i + 1)) & 0x01;
+
+                neighbours += (upperRows >> (7 + i + 2)) & 0x01;
+                neighbours += (currentRows >> (7 + i + 2)) & 0x01;
+                neighbours += (lowerRows >> (7 + i + 2)) & 0x01;
+
+
+                unsigned int temp;
+
+                if (neighbours == 3)
+                    temp = 1; //alive
+                else if ((neighbours == 2) && (alive == 1))
+                    temp = 1; //alive
+                else
+                    temp = 0; //dead
+
+                newCentralRow |= temp << (8 + i);
+            }
+
+            //central row now has to become newCentralRow.What about endianess?It probably has to be converted to a different endianness....
+
+            unsigned short newRow = (unsigned short)((newCentralRow & 0x00ffff00) >> 8);
+            //swap endianness of newRow
+            newRow = ((newRow & 0x00ff) << 8) | ((newRow & 0xff00) >> 8);
+
+            bytePointer = temporaryNewGeneration; //now write results to the next generation
+            *((unsigned short*)(bytePointer + currentRowIndex + 1)) = newRow;
         }
-    //deleteArray(world);
-    //notify the GUI thread
+        unsigned char* temp = world;
+        world = temporaryNewGeneration;
+        temporaryNewGeneration = temp;
+    }
+    unsigned char* worldForGUI = createNewWorld();
+    std::memcpy(worldForGUI, world, sizeOfTheWorld);
 
-
-    world = newWorld;*/
-    world = newWorld;
-    return newWorld;
+    return worldForGUI;
 }
-int LifeCalculator::numOfNeighbours(int x, int y)
-{
-    int neighbours = 0;
-    /*neighbours += world[(y-1)*numOfHorizontalCells+x-1] + world[(y-1)*numOfHorizontalCells+x] + world[(y-1)*numOfHorizontalCells+x+1]
-                  + world[y*numOfHorizontalCells+x-1] + world[y*numOfHorizontalCells+x+1]
-                  + world[(y+1)*numOfHorizontalCells+x-1] + world[(y+1)*numOfHorizontalCells+x] + world[(y+1)*numOfHorizontalCells+x+1];*/
-    /*if(world[(y-1)*numOfHorizontalCells+x-1] == 1)
-        neighbours++;
-    if(world[(y-1)*numOfHorizontalCells+x] == 1)
-        neighbours++;
-    if(world[(y-1)*numOfHorizontalCells+x+1] == 1)
-        neighbours++;
 
-    if(world[y*numOfHorizontalCells+x-1] == 1)
-        neighbours++;
-    if(world[y*numOfHorizontalCells+x+1] == 1)
-        neighbours++;
-
-    if(world[(y+1)*numOfHorizontalCells+x-1] == 1)
-        neighbours++;
-    if(world[(y+1)*numOfHorizontalCells+x] == 1)
-        neighbours++;
-    if(world[(y+1)*numOfHorizontalCells+x+1] == 1)
-        neighbours++;*/
-
-    return neighbours;
-}
 
 void LifeCalculator::deallocate()
 {
@@ -534,11 +544,6 @@ void LifeCalculator::pause(bool pause)
     paused = pause;
 }
 
-unsigned char* LifeCalculator::createNewWorld()
-{
-    unsigned char* array = new unsigned char[sizeOfTheWorld]();
-    return array;
-}
 
 
 
