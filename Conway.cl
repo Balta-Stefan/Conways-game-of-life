@@ -7,7 +7,7 @@
  *
  *
  * */
-#pragma OPENCL EXTENSION cl_khr_byte_addressable_store : enable
+//#pragma OPENCL EXTENSION cl_khr_byte_addressable_store : enable
 
 void littleToBigEndian(unsigned int* toConvert)
 {
@@ -33,7 +33,7 @@ void bigToLittleEndian(unsigned int* toConvert)
  * */
 __kernel void simulateLife(__global unsigned char* currentGeneration, __global unsigned char* nextGeneration, int numOfHorizontalGroups, int maxID)
 {
-    //if world width is a multiple of 8, total number of 4 byte integer reads will be width/2
+    //if world width is a multiple of 16, total number of 4 byte integer reads per row will be (numOfHorizontalGroups-2)/2
 
     int ID = get_global_id(0);
 
@@ -52,12 +52,13 @@ __kernel void simulateLife(__global unsigned char* currentGeneration, __global u
     __global unsigned char* bytePointer = currentGeneration;
 
     //unsigned ints are used because only zeros fill out the void when shifting
+    //each variable below holds 4 contiguous rows (total 4*8=32) of cells
     unsigned int upperRows = *((__global unsigned int*)(bytePointer + upperRowIndex));
     unsigned int currentRows = *((__global unsigned int*)(bytePointer + currentRowIndex));
     unsigned int lowerRows = *((__global unsigned int*)(bytePointer + lowerRowIndex));
 
 
-    //each of the variables below contains 32 cells.Only the middle 16 are of interest.
+    //each of the variables below contains 32 cells.Only the middle 16, LSB of leftmost byte and MSB of rightmost byte are of interest.
     //First byte's LSB is the neighbour of the 2nd byte's MSB
     //Last byte's MSB is the neighbour of the 3rd byte's LSB
 
@@ -69,46 +70,49 @@ __kernel void simulateLife(__global unsigned char* currentGeneration, __global u
 
     //all game of life is done below
 
+    //this will be the new state
     unsigned int newCentralRow = 0;
 
     //lower 7 bits aren't needed (neither are the upper 7 bits).
-    //upperRows >>= 7;
-    //currentRows >>= 7;
-    //lowerRows >>= 7;
+
+    //evaluate inner 16 cells
     for(int i = 0; i < 16; i++) //16 iterations because that's how many bits (cells) are evaluated in a 4 byte integer (only the middle 2 bytes are evaluated)
     {
         unsigned int neighbours = 0;
 
         //might be better to store the results in different variables if it could harm pipelining (if it exists on GPUs)
+        //evaluate column on the right
         neighbours += (upperRows >> (7+i)) & 0x01;
         neighbours += (currentRows >> (7+i)) & 0x01;
         neighbours += (lowerRows >> (7+i)) & 0x01;
 
+        //evaluate column that contains the cell that is being evaluated
         neighbours += (upperRows >> (7+i+1)) & 0x01;
         unsigned int alive = (currentRows >> (7+i+1)) & 0x01;
         neighbours += (lowerRows >> (7+i+1)) & 0x01;
 
+        //evaluate the left column
         neighbours += (upperRows >> (7+i+2)) & 0x01;
         neighbours += (currentRows >> (7+i+2)) & 0x01;
         neighbours += (lowerRows >> (7+i+2)) & 0x01;
 
 
-        unsigned int temp;
+        unsigned int newCellState;
 
         if(neighbours == 3)
-            temp = 1; //alive
+            newCellState = 1; //alive
         else if((neighbours == 2) && (alive == 1))
-            temp = 1; //alive
+            newCellState = 1; //alive
         else
-            temp = 0; //dead
+            newCellState = 0; //dead
 
-        newCentralRow |= temp << (8+i);
+        newCentralRow |= newCellState << (8+i);
     }
 
 
     //put the new central row into the nextGeneration array
 
-    //put inner 2 bytes of the integer into a short
+    //put inner 2 bytes of the integer into a short.Writing a 4 byte integer would overwrite other thread's result.
     unsigned short newRow = (unsigned short)((newCentralRow & 0x00ffff00) >> 8);
     //swap endianness of newRow
     newRow = ((newRow & 0x00ff) << 8) | ((newRow & 0xff00) >> 8);
@@ -118,4 +122,5 @@ __kernel void simulateLife(__global unsigned char* currentGeneration, __global u
     *((__global unsigned short*)(bytePointer + currentRowIndex+1)) = newRow;
 
 }
+
 

@@ -537,7 +537,6 @@ void LifeCalculator::pause(bool pause)
 unsigned char* LifeCalculator::createNewWorld()
 {
     unsigned char* array = new unsigned char[sizeOfTheWorld]();
-    for(int i = 0; i < sizeOfTheWorld; i++) if (array[i] != 0) qInfo() << "ONE ELEMENT ISNT ZERO!!!";
     return array;
 }
 
