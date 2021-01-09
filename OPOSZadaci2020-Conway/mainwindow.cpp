@@ -14,6 +14,10 @@ MainWindow::MainWindow(QWidget *parent)
 
     ui->horizontalSlider->setTickInterval(1);
     ui->horizontalSlider_2->setTickInterval(1);
+
+    //    connect(&calculator, &LifeCalculator::sendNewWorld, this, &Canvas::sendNewGeneration); //which connection type should be used (slot and signal are in different threads)?
+
+    connect(ui->canvas, &Canvas::changeSliders, this, &MainWindow::setSliderValues);
 }
 
 MainWindow::~MainWindow()
@@ -21,6 +25,29 @@ MainWindow::~MainWindow()
     delete ui;
 }
 
+void MainWindow::setSliderValues(int width, int height)
+{
+    for(int i = 0; i < maxWidth; i++)
+    {
+        if(widthValues[i] == width)
+        {
+            currentWidthSliderIndex = i;
+            ui->horizontalSlider->setValue(i);
+            //ui->horizontalSlider->setSliderPosition(i);
+            break;
+        }
+    }
+    for(int i = 0; i < maxHeight; i++)
+    {
+        if(heightValues[i] == height)
+        {
+            currentHeightSliderIndex = i;
+            ui->horizontalSlider_2->setValue(i);
+            //ui->horizontalSlider_2->setSliderPosition(i);
+            break;
+        }
+    }
+}
 
 void MainWindow::on_jumpButton_clicked()
 {

@@ -60,6 +60,8 @@ public slots:
     void stop();
     void sendNewGeneration(unsigned char* newWorld); //LifeCalculator class uses this slot to notify this (GUI) thread so it can update itself
 
+signals:
+    void changeSliders(int width, int height);
 
 private:
     void resetParameters(); //resets certain parameters

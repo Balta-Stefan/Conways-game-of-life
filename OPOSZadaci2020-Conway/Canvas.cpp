@@ -92,6 +92,7 @@ void Canvas::readImage(std::string file)
     numOfHorizontalCells = numOfRealHorizontalCells - 16;
     numOfVerticalCells = numOfRealVerticalCells - 2;
     rowLength = numOfRealHorizontalCells/packedGroupSize;
+    emit changeSliders(numOfHorizontalCells, numOfVerticalCells);
 
     resetParameters();
 

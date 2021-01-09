@@ -15,6 +15,9 @@ public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
+public slots:
+    void setSliderValues(int width, int height);
+
 private slots:
     void on_jumpButton_clicked();
 
