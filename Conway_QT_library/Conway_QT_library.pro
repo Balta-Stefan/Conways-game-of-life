@@ -1,4 +1,5 @@
-CONFIG -= qt
+
+QT += core
 
 TEMPLATE = lib
 CONFIG += staticlib

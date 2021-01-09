@@ -17,7 +17,13 @@ void LifeCalculator::startSimulation(unsigned char* world)
 void LifeCalculator::init(int numOfHorizontalGroups, int numOfRows, unsigned char** GUIWorld)
 {
     if(simulator != nullptr)
+    {
+        //make sure we don't free the memory if the run() method hasn't been put to sleep yet
+        //startMutex.lock();
         delete simulator;
+        qInfo() << "3012deleted the old sim";
+        //startMutex.unlock();
+    }
 
     simulator = new Conway(numOfHorizontalGroups, numOfRows, GUIWorld);
 
@@ -45,7 +51,9 @@ void LifeCalculator::run()
     {
         while(paused)
         {
+            qInfo() << "IM GETTING PAUSED NOW!!";
             waitCondition.wait(&startMutex);
+            qInfo() << "I AM GETTING UNPAUSED";
             //time.start();
         }
         //unsigned char* newWorld = simulator->simulateLifeSerialCPU();
@@ -66,7 +74,7 @@ void LifeCalculator::run()
         currentGeneration++;
         qInfo() << "Current generation: " << currentGeneration;*/
         emit sendNewWorld(newWorld);
-        qInfo() << "I have received new world";
+        //qInfo() << "I have received new world";
         msleep(45);
         //break;
     }

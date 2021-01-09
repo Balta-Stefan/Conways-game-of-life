@@ -36,6 +36,8 @@ void Conway::startSimulation(unsigned char* world)
     err = clEnqueueWriteBuffer(queue, GPUNewGeneration, CL_TRUE, 0, sizeOfTheWorld, world, 0, NULL, NULL);
     clFinish(queue);  //not necessary because the calls are blocking (flag CL_TRUE)
 
+    if(err != CL_SUCCESS)
+        throw TranslateOpenCLError(err);
     //waitCondition.notify_all();
 }
 
@@ -50,24 +52,36 @@ void Conway::GPUInit()
 
     // Bind to platform
     err = clGetPlatformIDs(1, &cpPlatform, NULL);
+    if(err != CL_SUCCESS)
+        throw TranslateOpenCLError(err);
 
     // Get ID for the device
     err = clGetDeviceIDs(cpPlatform, CL_DEVICE_TYPE_GPU, 1, &device_id, NULL);
+    if(err != CL_SUCCESS)
+        throw TranslateOpenCLError(err);
 
     // Create a context
     context = clCreateContext(0, 1, &device_id, NULL, NULL, &err);
+    if(err != CL_SUCCESS)
+        throw TranslateOpenCLError(err);
 
     // Create a command queue
     queue = clCreateCommandQueue(context, device_id, 0, &err);
+    if(err != CL_SUCCESS)
+        throw TranslateOpenCLError(err);
 
-    char* kernelSource = readKernelSource("singleByteConway.cl");
+    std::string kernelSource = readKernelSource("singleByteConway.cl");
+    const char* tempSource = kernelSource.c_str();
 
     // Create the compute program from the source buffer
-    program = clCreateProgramWithSource(context, 1, (const char**)&kernelSource, NULL, &err);
-    delete[] kernelSource;
+    program = clCreateProgramWithSource(context, 1, (const char**)&tempSource, NULL, &err);
+    if(err != CL_SUCCESS)
+        throw TranslateOpenCLError(err);
 
     // Build the program executable
     err = clBuildProgram(program, 0, NULL, NULL, NULL, NULL);
+    //if(err != CL_SUCCESS)
+        //throw TranslateOpenCLError(err);
 
 
     if (err != CL_SUCCESS)
@@ -81,12 +95,16 @@ void Conway::GPUInit()
         // Get the log
         clGetProgramBuildInfo(program, device_id, CL_PROGRAM_BUILD_LOG, log_size, log, NULL);
 
+        qInfo() << "couldnt create kernel: " << log;
+        std::string temp(log);
         delete[] log;
         return; //notify the GUI using signal/slot mechanism.The passed value should be a string.
     }
 
     // Create the compute kernel in the program we wish to run
     kernel = clCreateKernel(program, "simulateLife", &err);
+    if(err != CL_SUCCESS)
+        throw TranslateOpenCLError(err);
 
     // Number of work items in each local work group
     clGetKernelWorkGroupInfo(kernel, device_id, CL_KERNEL_WORK_GROUP_SIZE, sizeof(localSize), &localSize, NULL);
@@ -99,12 +117,18 @@ void Conway::GPUInit()
     globalSize = std::ceil((double)numOfIterations / localSize) * localSize;
 
     // Create the worlds in device memory for our calculation
-    GPUCurrentGeneration = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeOfTheWorld, NULL, NULL);
-    GPUNewGeneration = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeOfTheWorld, NULL, NULL);
+    GPUCurrentGeneration = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeOfTheWorld, NULL, &err);
+    if(err != CL_SUCCESS)
+        throw TranslateOpenCLError(err);
+    GPUNewGeneration = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeOfTheWorld, NULL, &err);
+    if(err != CL_SUCCESS)
+        throw TranslateOpenCLError(err);
 
     //set 2nd and 3rd argument.It's possible that this is wrong and that they have to be set for each iteration.
     err |= clSetKernelArg(kernel, 2, sizeof(int), &numOfHorizontalGroups);
     err |= clSetKernelArg(kernel, 3, sizeof(int), &maxID);
+    if(err != CL_SUCCESS)
+        throw TranslateOpenCLError(err);
     clFinish(queue);
 }
 
@@ -140,6 +164,8 @@ unsigned char* Conway::simulateLifeGPU()
         //set kernel arguments
         err = clSetKernelArg(kernel, 0, sizeof(cl_mem), &GPUCurrentGeneration); //should it be sizeof(cl_mem) or sizeof(cl_mem*)?
         err |= clSetKernelArg(kernel, 1, sizeof(cl_mem), &GPUNewGeneration);
+        if(err != CL_SUCCESS)
+            throw TranslateOpenCLError(err);
         //It's possible that 3rd and 4th argument have to be set in every generation.
 
         //err |= clSetKernelArg(kernel, 2, sizeof(int), &numOfHorizontalGroups);
@@ -150,6 +176,8 @@ unsigned char* Conway::simulateLifeGPU()
 
         // Execute the kernel over the entire range of the data set
         err = clEnqueueNDRangeKernel(queue, kernel, 1, NULL, &globalSize, &localSize, 0, NULL, NULL);
+        if(err != CL_SUCCESS)
+            throw TranslateOpenCLError(err);
         //qInfo() << "AFTER RUNNING KERNEL: GLOBAL SIZE=" << globalSize << ", local size=" << localSize;
         //qInfo() << "=====================Error after executing the kernel: " << TranslateOpenCLError(err);
 
@@ -157,7 +185,9 @@ unsigned char* Conway::simulateLifeGPU()
         clFinish(queue);
     }
     // Read the results from the device
-    clEnqueueReadBuffer(queue, GPUNewGeneration, CL_TRUE, 0, sizeOfTheWorld, newGeneration, 0, NULL, NULL);
+    err = clEnqueueReadBuffer(queue, GPUNewGeneration, CL_TRUE, 0, sizeOfTheWorld, newGeneration, 0, NULL, NULL);
+    if(err != CL_SUCCESS)
+        throw TranslateOpenCLError(err);
 
     clFinish(queue);
     return newGeneration;
@@ -376,16 +406,22 @@ Conway::~Conway()
 {
     //deallocate all the memory from the host and GPU`
 // release OpenCL resources
-    clReleaseMemObject(GPUCurrentGeneration);
-    clReleaseMemObject(GPUNewGeneration);
-    clReleaseProgram(program);
-    clReleaseKernel(kernel);
-    clReleaseCommandQueue(queue);
-    clReleaseContext(context);
-
-
+    qInfo() << "deleting: world[]";
     delete[] world;
+    qInfo() << "deleting: temporaryNewGeneration[]";
     delete[] temporaryNewGeneration;
+    qInfo() << "deleting: GPUCurrentGeneration";
+    clReleaseMemObject(GPUCurrentGeneration);
+    qInfo() << "deleting: GPUNewGeneration";
+    clReleaseMemObject(GPUNewGeneration);
+    qInfo() << "deleting: program";
+    clReleaseProgram(program);
+    qInfo() << "deleting: kernel";
+    clReleaseKernel(kernel);
+    qInfo() << "deleting: queue";
+    clReleaseCommandQueue(queue);
+    qInfo() << "deleting: context";
+    clReleaseContext(context);
 }
 
 /*void Conway::deallocate()
@@ -411,11 +447,24 @@ unsigned char* Conway::createNewWorld()
 }
 
 
-char* Conway::readKernelSource(const char* filename)
+std::string Conway::readKernelSource(const char* filename)
 {
-    char* kernelSource = nullptr;
+
+    std::ifstream inputFile(filename);
+
+    if(!inputFile)
+        throw "Can't open file";
+
+    std::ostringstream buffer;
+    buffer << inputFile.rdbuf();
+
+    std::string sourceCode = buffer.str();
+
+    inputFile.close();
+    return sourceCode;
+    /*char* kernelSource = nullptr;
     long length;
-    FILE* f = fopen(filename, "r");
+    FILE* f = fopen(filename, "rb");
 
     if (f)
     {
@@ -428,7 +477,10 @@ char* Conway::readKernelSource(const char* filename)
             fread(kernelSource, 1, length, f);
         fclose(f);
     }
-    return kernelSource;
+    else
+        throw "Cant read kernel source";
+    qInfo() << "The kernel source is: " << kernelSource;
+    return kernelSource;*/
 }
 
 

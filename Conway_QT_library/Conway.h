@@ -5,6 +5,10 @@
 #include <cmath>
 #include <stdio.h>
 #include <cstring>
+#include <string>
+#include <QDebug>
+#include <fstream>
+#include <sstream>
 
 class Conway
 {
@@ -30,7 +34,7 @@ private:
 
     unsigned char* createNewWorld();
     void GPUInit();
-    char* readKernelSource(const char* filename);
+    std::string readKernelSource(const char* filename);
     //void deallocate();
 
     // Device input buffers

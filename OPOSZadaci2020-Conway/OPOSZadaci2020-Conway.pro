@@ -39,6 +39,8 @@ win32:!win32-g++: PRE_TARGETDEPS += $$PWD/'../../../../../Program Files/NVIDIA G
 else:win32-g++: PRE_TARGETDEPS += $$PWD/'../../../../../Program Files/NVIDIA GPU Computing Toolkit/CUDA/v11.2/lib/x64/libOpenCL.a'
 
 
+
+
 win32: LIBS += -L$$PWD/../build-Conway_QT_library-Desktop_Qt_6_0_0_MSVC2019_64bit-Release/release/ -lConway_QT_library
 
 INCLUDEPATH += $$PWD/../Conway_QT_library

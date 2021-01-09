@@ -10,12 +10,67 @@ Canvas::Canvas(QWidget *parent) : QWidget(parent)
 
     offsetX = cellWidth;
     offsetY = cellHeight;
-    calculator.init(rowLength, numOfRealVerticalCells, &world);
+    try
+    {
+        calculator.init(rowLength, numOfRealVerticalCells, &world);
+    }
+    catch (char* error)
+    {
+        qInfo() << "Canvas ctor: calculator init exception: " << error;
+        return;
+    }
 
 
 
     calculator.start();
     //QtConcurrent::run(this, &Canvas::play);
+}
+
+void Canvas::changeDimensions(int width, int height)
+{
+    numOfHorizontalCells = width;
+    numOfVerticalCells = height;
+
+    reset();
+}
+
+void Canvas::reset()
+{
+    calculator.pause(true);
+    resetParameters();
+
+    //clear the arrays
+    delete[] world;
+
+    try
+    {
+        calculator.init(rowLength, numOfRealVerticalCells, &world);
+    }
+    catch (char* error)
+    {
+        qInfo() << "Canvas reset: calculator init exception: " << error;
+        return;
+    }
+    update();
+}
+
+void Canvas::resetParameters()
+{
+    numOfRealHorizontalCells = numOfHorizontalCells+16;
+    numOfRealVerticalCells = numOfVerticalCells+2;
+    rowLength = numOfRealHorizontalCells/packedGroupSize;
+
+
+    numOfScreenHorizontalCells = numOfHorizontalCells;
+    numOfScreenVerticalCells = numOfVerticalCells;
+
+    offsetX = cellWidth = CanvasWidth / numOfHorizontalCells;
+    offsetY = cellHeight = CanvasHeight / numOfVerticalCells;
+
+    selectedUpperLeftCellX = selectedUpperLeftCellY = 0; //determines which cell is at the top left corner of the screen.Numbers start at 1 because the screen is surrounded by buffer zones (to avoid edge cases when checking neighbours).
+    selectedUpperGroupIndex = (selectedUpperLeftCellY+1)*rowLength+1 + selectedUpperLeftCellX/packedGroupSize; //index of the group that contains the upper left cell
+    selectedUpperCellBitPosition = (packedGroupSize - 1) - (selectedUpperLeftCellX%packedGroupSize); //Specifies the number of positions that have to be shifted to the right so we get the value of the upper left cell.
+
 }
 
 void Canvas::readImage(std::string file)
@@ -34,17 +89,11 @@ void Canvas::readImage(std::string file)
 
     qInfo() << "numOfRealHorizontalCells=" << numOfRealHorizontalCells;
     qInfo() << "numOfRealVerticalCells=" << numOfRealVerticalCells;
-    numOfHorizontalCells = numOfScreenHorizontalCells = numOfRealHorizontalCells - 16;
-    numOfVerticalCells = numOfScreenVerticalCells = numOfRealVerticalCells - 2;
+    numOfHorizontalCells = numOfRealHorizontalCells - 16;
+    numOfVerticalCells = numOfRealVerticalCells - 2;
     rowLength = numOfRealHorizontalCells/packedGroupSize;
 
-    offsetX = cellWidth = CanvasWidth / numOfHorizontalCells;
-    offsetY = cellHeight = CanvasHeight / numOfVerticalCells;
-
-    selectedUpperLeftCellX = selectedUpperLeftCellY = 0; //determines which cell is at the top left corner of the screen.Numbers start at 1 because the screen is surrounded by buffer zones (to avoid edge cases when checking neighbours).
-    selectedUpperGroupIndex = (selectedUpperLeftCellY+1)*rowLength+1 + selectedUpperLeftCellX/packedGroupSize; //index of the group that contains the upper left cell
-    selectedUpperCellBitPosition = (packedGroupSize - 1) - (selectedUpperLeftCellX%packedGroupSize); //Specifies the number of positions that have to be shifted to the right so we get the value of the upper left cell.
-
+    resetParameters();
 
     qInfo() << "numOfRealHorizontalCells * numOfRealVerticalCells=" << numOfRealHorizontalCells * numOfRealVerticalCells;
 
@@ -54,7 +103,15 @@ void Canvas::readImage(std::string file)
 
 
     delete[] world;
-    calculator.init(rowLength, numOfRealHorizontalCells, &world);
+    try
+    {
+        calculator.init(rowLength, numOfRealVerticalCells, &world);
+    }
+    catch (char* error)
+    {
+        qInfo() << "Canvas readimage: calculator init exception: " << error;
+        return;
+    }
 
     int counter = 0;
     unsigned char one = 1;
@@ -124,7 +181,12 @@ void Canvas::sendNewGeneration(unsigned char* newWorld)
 void Canvas::start()
 {
     qInfo() << "i am started";
-    calculator.startSimulation(world);
+    try {
+          calculator.startSimulation(world);
+    }  catch (char* error) {
+        qInfo() << "canvas start exception: " << error;
+    }
+
     //mutex.unlock();
 }
 
@@ -200,7 +262,7 @@ void Canvas::printState()
 
 void Canvas::mousePressEvent(QMouseEvent *event)
 {
-    qInfo() << "mouse pressed!" << "(" << event->x() / cellWidth << "," << event->y()/cellHeight << ")";
+    //qInfo() << "mouse pressed!" << "(" << event->x() / cellWidth << "," << event->y()/cellHeight << ")";
 
     if(event->button() == Qt::LeftButton)
     {
@@ -208,8 +270,8 @@ void Canvas::mousePressEvent(QMouseEvent *event)
         //ako nije: od koordinate oduzeti offset i vidjeti koliko je celija, onda dodati 1
         determineClickedCell(event->x(), event->y(), clickedCellX, clickedCellY);
 
-        qInfo() << "clickedCells:" << clickedCellX << "," << clickedCellY;
-        qInfo() << "Cells to be activated:" << selectedUpperLeftCellX + clickedCellX << "," << selectedUpperLeftCellY + clickedCellY;
+        //qInfo() << "clickedCells:" << clickedCellX << "," << clickedCellY;
+        //qInfo() << "Cells to be activated:" << selectedUpperLeftCellX + clickedCellX << "," << selectedUpperLeftCellY + clickedCellY;
     }
     else
         return;
@@ -246,7 +308,7 @@ void Canvas::mouseMoveEvent(QMouseEvent *event)
         return;
     if((newCellX > numOfScreenHorizontalCells) || (newCellY > numOfScreenVerticalCells) || (newCellX < 0) || (newCellY < 0)) //to avoid out of bounds array access
         return;
-    qInfo() << "updated cell: " << newCellX << "," << newCellY;
+    //qInfo() << "updated cell: " << newCellX << "," << newCellY;
 
     modifyCell(1, newCellX, newCellY);
     /*int row = (selectedUpperLeftCellY+newCellY)*numOfRealHorizontalCells;
@@ -316,7 +378,7 @@ void Canvas::wheelEvent(QWheelEvent *event)
     cellHeight += isZooming*zoomValue;
 
     //qInfo() << "CanvasHeight / cellHeight=" << (double)CanvasHeight / cellHeight;
-    qInfo() << "Selected cell (world):" << selectedUpperLeftCellX-1+cellX << "," << selectedUpperLeftCellY-1+cellY;
+    //qInfo() << "Selected cell (world):" << selectedUpperLeftCellX-1+cellX << "," << selectedUpperLeftCellY-1+cellY;
     int tempNumOfScreenHorizontalCells = std::ceil((double)CanvasWidth / cellWidth);
     if(tempNumOfScreenHorizontalCells <= packedGroupSize)
     {
@@ -363,7 +425,7 @@ void Canvas::wheelEvent(QWheelEvent *event)
 
     //number of whole cells per each axis that will be removed due to the offsets.
     int horizontalCellGain, verticalCellGain;
-    qInfo() << "----------gains are:" << (double)screenOffsetX/cellWidth << "," << (double)screenOffsetY/cellHeight;
+    //qInfo() << "----------gains are:" << (double)screenOffsetX/cellWidth << "," << (double)screenOffsetY/cellHeight;
 
     //if the user is zooming in, he won't gain any new cells on the left side.If he is zooming out, new cells can appear on the left side.
     if(isZooming > 0)
@@ -377,7 +439,7 @@ void Canvas::wheelEvent(QWheelEvent *event)
         horizontalCellGain = -1*std::ceil(-1*(double)screenOffsetX / cellWidth);
         verticalCellGain = -1*std::ceil(-1*(double)screenOffsetY / cellHeight);
     }
-    qInfo() << "----------final gains:" << horizontalCellGain << "," << verticalCellGain;
+    //qInfo() << "----------final gains:" << horizontalCellGain << "," << verticalCellGain;
 
 
     //if we are losing the part of our left cell, new offset will be equal to cellSize - lostPart
@@ -408,7 +470,7 @@ void Canvas::wheelEvent(QWheelEvent *event)
     int newUpperLeftCellY = selectedUpperLeftCellY+verticalCellGain;
 
     //check if we're trying to display more cells than we can (which will lead to out of bounds array access)
-    qInfo() << "offsets have to be modified if we are going out of bounds!"; //the last cell on the right/down side should be the last one.It shouldn't disappear!
+    //qInfo() << "offsets have to be modified if we are going out of bounds!"; //the last cell on the right/down side should be the last one.It shouldn't disappear!
     if((newUpperLeftCellX + numOfScreenHorizontalCells - 1) > numOfHorizontalCells)
         newUpperLeftCellX -= (newUpperLeftCellX + numOfScreenHorizontalCells - 1 - numOfHorizontalCells);
     if((newUpperLeftCellY + numOfScreenVerticalCells - 1) > numOfVerticalCells)
@@ -431,7 +493,7 @@ void Canvas::wheelEvent(QWheelEvent *event)
 
     //ceil(cellWidth/(canvasWidth % cellWidth))
     //qInfo() << "PROBLEM SA NEISPRAVNIM RACUNANJEM BROJA VIDLJIVIH CELIJA JE ZBOG OSTATKA.AKO IMAMO OFFSET, TREBA VIDJETI KOLIKO CE SE GRESKE UVESTI ZA SVAKU LINIJU, TO MOZE BITI VISE OD JEDNE CELIJE, treba pogledati ostatak od canvasSize/cellSize, pomnoziti to sa brojem cijelih celija (ne offsetovanih), podijeliti to sa dimenzijom celije i uzeti ceil()";
-    qInfo() << "PROBLEM: MOZE SE DESITI DA ZBOG SELECTEDUPPERCELL I NUMOFSCREENCELLS POKUSAVAM PRIKAZATI VISE CELIJA NEGO STO POSTOJI PA DOLAZI DO OUT OF BOUNDS PRISTUPA";
+    /*qInfo() << "PROBLEM: MOZE SE DESITI DA ZBOG SELECTEDUPPERCELL I NUMOFSCREENCELLS POKUSAVAM PRIKAZATI VISE CELIJA NEGO STO POSTOJI PA DOLAZI DO OUT OF BOUNDS PRISTUPA";
     qInfo() << "canvasHeight % cellHeight=" << CanvasHeight % cellHeight;
     qInfo() << "Selected coordinates: " << event->position().x() << "," << event->position().y();
     qInfo() << "Selected cell (screen): " << cellX << "," << cellY;
@@ -443,7 +505,7 @@ void Canvas::wheelEvent(QWheelEvent *event)
     qInfo() << "New dimensions of the cell: " << cellWidth << "," << cellHeight;
     qInfo() << "selected upper cells (starting from 0,0):" << selectedUpperLeftCellX << "," << selectedUpperLeftCellY;
     qInfo() << "number of cells: " << numOfScreenHorizontalCells << "," << numOfScreenVerticalCells;
-    qInfo() << "===========================================================================";
+    qInfo() << "===========================================================================";*/
 
     updateCanvasElements();
     update();

@@ -52,6 +52,8 @@ public:
     void skipGenerations(int skipToGeneration);
     void readImage(std::string file);
     void writeImage(std::string file);
+    void reset();
+    void changeDimensions(int width, int height);
 
 public slots:
     void start();
@@ -60,6 +62,7 @@ public slots:
 
 
 private:
+    void resetParameters(); //resets certain parameters
     void mousePressEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
     void wheelEvent(QWheelEvent *event) override;
@@ -77,7 +80,7 @@ private:
     static const int packedGroupSize = sizeof(unsigned char)*8; //sizeof gives size in bytes, not bits...
 
     //640, 360
-    int numOfHorizontalCells = 640, numOfVerticalCells = 360; //dimension of the world
+    int numOfHorizontalCells = 32, numOfVerticalCells = 30; //dimension of the world
     int numOfRealHorizontalCells = numOfHorizontalCells+16, numOfRealVerticalCells = numOfVerticalCells+2; //there are 2 invisible columns and 2 invisible rows
     int rowLength = numOfRealHorizontalCells/packedGroupSize; //1 unsigned char should hold 8 cells.Ceil is not used because it is assumed that row is a multiple of 16.
 
