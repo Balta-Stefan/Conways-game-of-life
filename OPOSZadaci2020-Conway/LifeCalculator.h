@@ -39,6 +39,7 @@ public:
     void startSimulation(unsigned char* world);
     void stop();
     void skipGenerations(int generation);
+    ~LifeCalculator();
 
 protected:
     void run() override;

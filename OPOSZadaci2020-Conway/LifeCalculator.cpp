@@ -39,6 +39,20 @@ void LifeCalculator::skipGenerations(int generation)
     simulator->skipGenerations(generation);
 }
 
+LifeCalculator::~LifeCalculator()
+{
+    qInfo() << "Lifecalc destructor";
+    runSimulation = false;
+    if(paused == true)
+    {
+        waitCondition.notify_all();
+        delete simulator;
+    }
+
+    //wait for the thread (run method) to exit gracefully
+    startMutex.lock();
+    startMutex.unlock();
+}
 
 void LifeCalculator::run()
 {
@@ -51,9 +65,12 @@ void LifeCalculator::run()
     {
         while(paused)
         {
-            qInfo() << "IM GETTING PAUSED NOW!!";
             waitCondition.wait(&startMutex);
-            qInfo() << "I AM GETTING UNPAUSED";
+            if(runSimulation == false)
+            {
+                startMutex.unlock();
+                return;
+            }
             //time.start();
         }
         //unsigned char* newWorld = simulator->simulateLifeSerialCPU();

@@ -31,6 +31,11 @@ private slots:
 
     void on_horizontalSlider_2_sliderMoved(int position);
 
+
+    void on_horizontalSlider_valueChanged(int value);
+
+    void on_horizontalSlider_2_valueChanged(int value);
+
 private:
     Ui::MainWindow *ui;
     std::string getPictureName();

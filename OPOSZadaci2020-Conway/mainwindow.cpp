@@ -58,6 +58,7 @@ void MainWindow::on_startButton_clicked()
     ui->seedPicture->setDisabled(true);
 
     ui->horizontalSlider->setDisabled(true);
+    ui->horizontalSlider_2->setDisabled(true);
 
     ui->canvas->start();
 }
@@ -72,6 +73,7 @@ void MainWindow::on_resetButton_clicked()
 void MainWindow::startStateButtonStates()
 {
     ui->horizontalSlider->setDisabled(false);
+    ui->horizontalSlider_2->setDisabled(false);
     ui->stopButton->setDisabled(true);
     ui->jumpButton->setDisabled(true);
     ui->getPicture->setDisabled(true);
@@ -93,6 +95,18 @@ void MainWindow::on_horizontalSlider_2_sliderMoved(int position)
 }
 
 
+void MainWindow::on_horizontalSlider_valueChanged(int value)
+{
+    currentWidthSliderIndex = value;
+    ui->canvas->changeDimensions(widthValues[currentWidthSliderIndex], heightValues[currentHeightSliderIndex]);
+}
+
+
+void MainWindow::on_horizontalSlider_2_valueChanged(int value)
+{
+    currentHeightSliderIndex = value;
+    ui->canvas->changeDimensions(widthValues[currentWidthSliderIndex], heightValues[currentHeightSliderIndex]);
+}
 
 
 
@@ -114,6 +128,7 @@ DEPENDPATH += $$PWD/../Conway_QT_library
 
 win32:!win32-g++: PRE_TARGETDEPS += $$PWD/../build-Conway_QT_library-Desktop_Qt_6_0_0_MSVC2019_64bit-Debug/debug/Conway_QT_library.lib
 else:win32-g++: PRE_TARGETDEPS += $$PWD/../build-Conway_QT_library-Desktop_Qt_6_0_0_MSVC2019_64bit-Debug/debug/libConway_QT_library.a*/
+
 
 
 
