@@ -51,7 +51,6 @@ void MainWindow::on_startButton_clicked()
 {
     ui->stopButton->setDisabled(false);
     ui->jumpButton->setDisabled(false);
-    ui->getPicture->setDisabled(false);
     ui->resetButton->setDisabled(false);
 
     ui->startButton->setDisabled(true);
@@ -76,7 +75,6 @@ void MainWindow::startStateButtonStates()
     ui->horizontalSlider_2->setDisabled(false);
     ui->stopButton->setDisabled(true);
     ui->jumpButton->setDisabled(true);
-    ui->getPicture->setDisabled(true);
     ui->resetButton->setDisabled(true);
     ui->seedPicture->setDisabled(false);
 }
