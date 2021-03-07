@@ -7,4 +7,6 @@ To do:
 2. Optimize the kernel.All threads within a workgroup share adjacent bytes.It makes sense to move them into shared memory.
 3. When zooming in leads to nonexistant cells, the screen coordinates are adjusted to avoid that problem.Current implementation is unable to zoom into the border cells because of this.Fix this problem!
 4. Determine the speedups gained by using lookup tables of different sizes.
-5. Write documentation!
+5. Optimize drawing - instead of drawing the entire picture, redraw only the changes.
+6. Write documentation!
+
