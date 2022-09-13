@@ -1,5 +1,10 @@
 # Conways-game-of-life
 Made in C++ with Qt and OpenCL.
+Users can:
+- Fast forward to a certain generation. 
+- Save the current state to a file and load it next time. 
+- Zoom the world - smart zooming is performed so that the point under the cursor remains under the cursor after zooming. 
+
 ![GIF](https://i.imgur.com/0t0273d.gif)
 
 To do:
